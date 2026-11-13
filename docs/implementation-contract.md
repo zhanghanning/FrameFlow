@@ -1,0 +1,77 @@
+# 帧序 FrameFlow — implementation contract
+
+Working directory: /home/techno/JavaWebSQL in WSL Ubuntu-22.04. Windows UNC: \\wsl.localhost\Ubuntu-22.04\home\techno\JavaWebSQL.
+Single studio / MCN workspace. Java 21, Spring Boot 3.5.12, native MyBatis 3.0.5, MySQL 8; Vue 3 + Vite + Vue Router + Axios + Element Plus. API /api on 8080; Vue 3000 proxies /api. Java package com.frameflow. No report until application and tests complete.
+
+## Ownership
+Database agent owns database/ only (schema.sql, objects.sql, seed.sql, performance.sql, security.sql). Backend agent owns backend/ only. Frontend agent owns frontend/ only. Main agent owns scripts/, docs/, README, IDE config and tests/integration. Coordinate schema/API changes by messages before changing contracts.
+
+## HTTP contract
+Success {code:0,msg:"ok",data:...}; errors correct 400/401/403/404/409 with {code:httpStatus,msg:ChineseMessage,data:null}. Bearer token, database sessions; login uses BCrypt. Money returned as JSON numbers, calculated only using BigDecimal / SQL DECIMAL. Dates yyyy-MM-dd; timestamp yyyy-MM-dd HH:mm:ss or ISO accepted by frontend. Listing GET resources returns {items:[],total,page,pageSize}; query q/status/projectId/page/pageSize. Page default 1, pageSize 20 maximum100. Lookup GET /api/options returns {creators,projects,works,assets,platformAccounts,contracts,users,platforms} arrays with id,name plus useful fields; scoped to current user.
+Roles ADMIN, PRODUCER (project coordinator), FINANCE, REVIEWER, CREATOR. Registration creates CREATOR with its own creator profile. ADMIN may perform management. Reviewer and finance may read production information; producer manages owned projects and creators participate in assigned projects. Personal finance stays scoped unless an ADMIN/FINANCE/REVIEWER role grants full financial access. Approval maker != checker. Demo usernames admin/producer/finance/reviewer/creator, password FrameFlow2026!; creator linked creator id1; user ids respectively 1..5. Do not hardcode actor ids in business endpoints.
+GET /auth/me -> {id,username,displayName,roles:[],creatorId}; POST /auth/login {username,password} -> {token,user}; POST /auth/logout; PUT /auth/password {oldPassword,newPassword} invalidates other sessions.
+GET /dashboard -> {metrics:{revenue,unsettled,activeProjects,assetCount},trend:[{month,revenue,cost}],platforms:[{name,amount}],recentProjects:[],recentRevenues:[],expiringAssets:[],pendingSettlements:[]}.
+GET /creators list; POST/PUT /creators[/{id}] {name,handle,email,phone,status,bio}; status ACTIVE/INACTIVE.
+GET /platform-accounts; POST/PUT {platformId,creatorId,name,externalId,status}.
+GET /projects; POST/PUT {name,clientName,description,budget,startDate,dueDate,status,ownerId,creatorIds:[]}; status PLANNING/PRODUCING/REVIEW/COMPLETED/ARCHIVED. GET /projects/{id} -> project plus members:[],works:[],costs:[],contracts:[].
+GET /works; POST/PUT {projectId,title,description,status,assetIds:[]}; DRAFT/EDITING/REVIEW/READY. GET /works/{id} includes assets. Only READY works may publish; required licenses valid on publication date and permitted platform.
+GET /assets; POST /assets multipart {file,name,kind,creatorId,licenseType,licenseStart,licenseEnd,allowedPlatforms,tags,description}; kind VIDEO/IMAGE/AUDIO/DOCUMENT, licenseType ORIGINAL/LICENSED; allowedPlatforms comma separated platform codes or ALL; tags comma separated. File maximum100MB; real file upload and authorized GET /assets/{id}/file; PUT /assets/{id} metadata; license proof optional upload metadata (do not implement fake files). Asset response includes filename,mimeType,sizeBytes,referenceCount. Archive via PUT status ARCHIVED, referenced assets retain metadata.
+GET /publications; POST {workId,platformAccountId,externalId,publishedAt,url}; platform and work unique pair externalId; viewCount manual nonnegative update optional. Store work/platform mapping explicitly.
+GET /revenues; POST {publicationId,sourceRef,revenueDate,kind,grossAmount,feeAmount,originalRevenueId,note}; kind INCOME/REFUND; entered positive gross/fee for INCOME, refund gross positive and fee0, net is negative for REFUND; originalRevenueId required refund. DRAFT -> CONFIRMED via POST /revenues/{id}/confirm. Cannot edit confirmed rows. Creator scope derives publication account.
+POST /revenues/import/preview multipart file CSV (UTF8 headers publicationId,sourceRef,revenueDate,grossAmount,feeAmount,note) -> {rows:[{rowNumber,...fields,valid,error}],validCount,invalidCount,duplicateCount}; POST /revenues/import {rows:[...valid rows]} -> {inserted,duplicates}; all rows validated again, unique source ref per platform account + kind, return clear errors. GET /revenues/export CSV honors filters/access.
+GET /costs; POST {projectId,category,description,amount,costDate}; DRAFT -> APPROVED via POST /costs/{id}/approve (REVIEWER/ADMIN, not creator). No amendments after allocation.
+GET /contracts; POST {projectId,name,startDate,endDate,studioRate,participants:[{creatorId,rate}]}; percentages use 0..100, total equals100, at least one participant. POST /contracts/{id}/activate, DRAFT->ACTIVE, disallow overlapping ACTIVE ranges per project; activated contracts immutable. Revenue confirmation captures matching contractId by revenueDate; refund inherits original contractId. Cost approval captures matching contractId by costDate.
+GET /settlements; POST /settlements {contractId,periodStart,periodEnd} calls stored procedure sp_generate_settlement, captures CONFIRMED unassigned revenues and APPROVED unassigned costs for the contract and dates in one transaction; allow older-contract refund in later dates. GET /settlements/{id} -> batch plus lines:[],revenues:[],costs:[],payments:[],history:[]. POST /settlements/{id}/submit DRAFT->SUBMITTED; POST /settlements/{id}/approve SUBMITTED->APPROVED and reject same submitter; POST /settlements/{id}/reject {reason} SUBMITTED->DRAFT. Snapshot rates+amounts at generation; no silent recalc on view. Batch includes studioAmount,distributableAmount,totalIncome,totalCost.
+GET /balances -> per creator {creatorId,creatorName,earned,paid,balance}; only APPROVED settlement lines form liabilities (positive and negative), payments reduce them. POST /payments {creatorId,amount,paidAt,reference,note} FINANCE/ADMIN, amount>0 and <= approved creator balance; locks creator row to prevent concurrent overpay. This is offline payment registration, not bank transfer. Negative approved settlements offset future positive earnings; no fake paid batch status. Batch status only DRAFT/SUBMITTED/APPROVED; payment balances separate.
+GET /payments list; GET /audit-logs (admin/reviewer); GET /users (admin); POST /users {username,displayName,password,roles,creatorId}; PUT /users/{id} {displayName,roles,creatorId,status}. Avoid self-disable.
+
+## Canonical database schema (MySQL 8, snake_case; all ids BIGINT UNSIGNED)
+Names/fields listed here are binding; add useful fields without breaking them. Every mutable business record includes created_at,updated_at where meaningful. FOREIGN KEYs, UNIQUEs, CHECKs implement actual integrity. Use InnoDB utf8mb4, all amounts DECIMAL(14,2), rates DECIMAL(7,4). Default status strings exact above.
+app_user(id,username,password_digest,display_name,creator_id nullable,status,created_at,updated_at)
+app_role(id,code,name); user_role(user_id,role_id) composite PK
+user_session(token varchar96 PK,user_id,expires_at,created_at)
+creator(id,name,handle,email,phone,bio,status,created_at,updated_at)
+platform(id,code,name); platform_account(id,platform_id,creator_id,name,external_id,status,created_at,updated_at)
+project(id,name,client_name,description,budget,start_date,due_date,status,owner_id,created_at,updated_at)
+project_member(project_id,creator_id) composite PK
+asset(id,name,kind,creator_id,original_filename,storage_path,mime_type,size_bytes,license_type,license_start,license_end,all_platforms,description,status,uploaded_by,created_at,updated_at)
+asset_platform(asset_id,platform_id) composite PK, FKs; ALL means all_platforms=true and no platform rows; otherwise allowedPlatforms is derived from joined platform.code values.
+tag(id,name unique); asset_tag(asset_id,tag_id) composite PK
+work(id,project_id,title,description,status,created_by,created_at,updated_at); work_asset(work_id,asset_id) composite PK
+publication(id,work_id,platform_account_id,external_id,published_at,url,view_count,created_by,created_at), UNIQUE(platform_account_id,external_id)
+contract(id,project_id,name,start_date,end_date,studio_rate,status,created_by,created_at,updated_at)
+contract_participant(contract_id,creator_id,rate) composite PK
+import_batch(id,filename,total_rows,inserted_rows,created_by,created_at)
+revenue(id,publication_id,platform_account_id,source_ref,revenue_date,kind,gross_amount,fee_amount,net_amount,original_revenue_id,contract_id,status,note,import_batch_id,confirmed_by,confirmed_at,created_by,created_at), UNIQUE(platform_account_id,source_ref,kind); original_revenue_id nullable self FK. net_amount stored/generated according to kind.
+project_cost(id,project_id,contract_id,category,description,amount,cost_date,status,approved_by,approved_at,created_by,created_at)
+settlement(id,settlement_no,contract_id,project_id,period_start,period_end,total_income,total_cost,distributable_amount,studio_rate,studio_amount,status,created_by,submitted_by,submitted_at,approved_by,approved_at,reject_reason,last_actor_id,created_at,updated_at)
+settlement_revenue(settlement_id,revenue_id UNIQUE,net_amount) composite PK; settlement_cost(settlement_id,cost_id UNIQUE,amount) composite PK
+settlement_line(id,settlement_id,creator_id,rate,amount), UNIQUE(settlement_id,creator_id)
+payment(id,creator_id,amount,paid_at,reference unique,note,created_by,created_at)
+settlement_history(id,settlement_id,from_status,to_status,actor_id,reason,created_at)
+audit_log(id,user_id,action,entity_type,entity_id,detail,created_at)
+perf_revenue(id,creator_id,platform_id,revenue_date,status,gross_amount,fee_amount,net_amount,source_ref) standalone performance table >=1m rows; no role in production totals.
+
+## Database objects
+views v_project_finance (aggregate revenue and cost independently before joining), v_creator_balance (approved lines minus payments), v_asset_license_expiry.
+procedure sp_generate_settlement(IN p_contract_id BIGINT,IN p_start DATE,IN p_end DATE,IN p_actor BIGINT,OUT p_settlement_id BIGINT). Caller owns transaction. Lock contract row serializes generation; select eligible unassigned revenues/costs; refuse empty selection; sum and snapshot; participant amounts ROUND(basis*rate/100,2), studio residual basis-SUM(participants). Negative basis allowed for refund carry. UNIQUE settlement allocations prevent double settlement. SQL exception SIGNAL business error. Backend calls MyBatis statementType CALLABLE with OUT.
+trigger settlement status history, actor chosen from submitted_by/approved_by/created_by; guard approved settlement amounts/status; revenue and cost freeze once allocated; contract participants immutability once ACTIVE. Keep trigger responsibilities small and explainable.
+
+## Demo and validation
+Seed realistic studio data (6 creators,3 platforms,8 projects,12 works,12+ assets as metadata with locally generated SVG/file fixtures added by main agent,publications,2+ contracts, income,costs,approved settlement/payment) covering several months of 2026, no platform API claims. Seed asset storage_path refers assets/demo/filename relative project uploads directory; agent coordinates exact fixtures. Development app boot seeds demo users password using BCrypt encoder if seed stores marker DEMO_PASSWORD; never plaintext runtime credentials.
+Create SQL roles with limited application privileges and read-only analyst role. No schema auto destruction. Main agent installs database and creates account via separate local env. Seed executes once on newly created frameflow database. Performance script uses set-based generated rows with controlled varied distributions, EXPLAIN ANALYZE before/after (creator_id,status,revenue_date) index, stores actual output for later report.
+All pages are live API driven; loading/empty/error states, search, forms validation, helpful Chinese feedback; no fake buttons. Persistent app data confirmed across restart. End-to-end tests cover login/roles, material/license publish, duplicate imports, money rounding, settlement allocation, maker-checker, payments/overpay, refunds offset, immutable data and million-row performance. Documentation is development/deployment notes only, no formal course report yet.
+
+## Registration, additional roles and project authorization
+
+POST /api/auth/register public {username,displayName,password,confirmPassword} -> {id,username,displayName}. Atomically creates creator profile, ACTIVE app_user bound to the profile and CREATOR role. Username 4-32 ASCII letters/digits/underscore, display name 1-80, password 8-72 characters within BCrypt byte limit; matching confirmation. Frontend enters the workspace directly. Existing creator binding and CREATOR role remain when additional roles are removed.
+
+GET /role-applications?scope=MINE|ALL&status=PENDING|APPROVED|REJECTED&q&page&pageSize -> standard page. Default MINE; ALL requires ADMIN. Fields id,userId,username,displayName,requestedRole,reason,status,reviewNote,reviewedBy,reviewerName,createdAt,reviewedAt. POST /role-applications {requestedRole,reason}->{id}, role ADMIN/PRODUCER/FINANCE/REVIEWER. POST /role-applications/{id}/approve {reviewNote?}; POST /role-applications/{id}/reject {reviewNote}. ADMIN required; applicant cannot approve own application. One pending application per person/role; reviews lock application and user rows, preserve CREATOR, append granted role and audit the decision. Existing sessions read current roles on every request.
+
+role_application tracks request/decision history with applicant, requested role, reason, status, reviewer, review note and timestamps. project_asset(project_id,asset_id,shared_by,created_at) grants project-specific material access. Initialization applies database/identity-workflow.sql idempotently, migrates USER-only accounts to independent creators and derives initial project_asset from existing work references.
+
+PRODUCER creates a project with itself as owner; ADMIN can assign an active ADMIN/PRODUCER owner. Only ADMIN or the owning PRODUCER edits project/member assignments. Production read scopes combine creator membership and producer ownership; FINANCE/REVIEWER retain full production read but do not receive extra write permissions. CREATOR owns personal creator profile/platform accounts/materials. Member selection for coordinators uses a minimal creator directory.
+
+Asset responses include sharedProjectIds. PUT /assets/{id}/projects {projectIds:[]} replaces sharing for owner/ADMIN; owners share to projects they participate in or coordinate. Existing work references prevent removing that project's sharing. Work save permits own assets (auto-shares to target) or assets explicitly shared to the target project. Other-project sharing never grants target-project use. Only owner/ADMIN changes asset metadata or archives it. Project owners may publish works to participating creators' accounts; ordinary creators use their own accounts.
+
+Financial full scope remains ADMIN/FINANCE/REVIEWER. PRODUCER-only costs are own submissions and must be created in owned projects. Creator personal settlement lines/payments remain personal, with common settlement income/cost evidence available for checking.

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.mapper.StudioMapper">
+<sql id="CreatorsFields">c.id,c.name,c.handle,c.email,c.phone,c.bio,c.status,c.created_at AS createdAt</sql>
+<sql id="CreatorsFrom">FROM creator c WHERE 1=1 <if test='creatorId != null'> AND c.id=#{creatorId}</if><if test='q != null'> AND (c.name LIKE CONCAT('%',#{q},'%') OR c.handle LIKE CONCAT('%',#{q},'%'))</if><if test='status != null'> AND c.status=#{status}</if></sql>
+<select id="listCreators" resultType="map">SELECT <include refid="CreatorsFields"/> <include refid="CreatorsFrom"/> ORDER BY c.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countCreators" resultType="long">SELECT COUNT(*) <include refid="CreatorsFrom"/></select>
+<select id="creator" resultType="map">SELECT <include refid="CreatorsFields"/> FROM creator c WHERE c.id=#{id}</select>
+<sql id="AccountsFields">a.id,a.platform_id AS platformId,a.creator_id AS creatorId,a.name,a.external_id AS externalId,a.status,p.name AS platformName,p.code AS platformCode,c.name AS creatorName</sql>
+<sql id="AccountsFrom">FROM platform_account a JOIN platform p ON p.id=a.platform_id JOIN creator c ON c.id=a.creator_id WHERE 1=1
+<if test="productionOwnerId != null or creatorId != null"> AND (
+<if test="creatorId != null">a.creator_id=#{creatorId}</if>
+<if test="productionOwnerId != null and creatorId != null"> OR </if>
+<if test="productionOwnerId != null">EXISTS(SELECT 1 FROM project_member pm JOIN project pr ON pr.id=pm.project_id WHERE pm.creator_id=a.creator_id AND pr.owner_id=#{productionOwnerId})</if>
+)</if>
+<if test="q != null"> AND (a.name LIKE CONCAT('%',#{q},'%') OR c.name LIKE CONCAT('%',#{q},'%'))</if><if test="status != null"> AND a.status=#{status}</if></sql>
+<select id="listAccounts" resultType="map">SELECT <include refid="AccountsFields"/> <include refid="AccountsFrom"/> ORDER BY a.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countAccounts" resultType="long">SELECT COUNT(*) <include refid="AccountsFrom"/></select>
+<select id="account" resultType="map">SELECT <include refid="AccountsFields"/> FROM platform_account a JOIN platform p ON p.id=a.platform_id JOIN creator c ON c.id=a.creator_id WHERE a.id=#{id}</select>
+<sql id="ProductionProjectScope"><if test="productionOwnerId != null or creatorId != null"> AND (
+<if test="productionOwnerId != null">p.owner_id=#{productionOwnerId}</if>
+<if test="productionOwnerId != null and creatorId != null"> OR </if>
+<if test="creatorId != null">EXISTS(SELECT 1 FROM project_member pm WHERE pm.project_id=p.id AND pm.creator_id=#{creatorId})</if>
+)</if></sql>
+<sql id="ProjectsFields">p.id,p.name,p.client_name AS clientName,p.description,p.budget,p.start_date AS startDate,p.due_date AS dueDate,p.status,p.owner_id AS ownerId,u.display_name AS ownerName,p.created_at AS createdAt,(SELECT COUNT(*) FROM work w WHERE w.project_id=p.id) AS workCount</sql>
+<sql id="ProjectsFrom">FROM project p JOIN app_user u ON u.id=p.owner_id WHERE 1=1 <include refid="ProductionProjectScope"/>
+<if test="q != null"> AND (p.name LIKE CONCAT('%',#{q},'%') OR p.client_name LIKE CONCAT('%',#{q},'%'))</if><if test="status != null"> AND p.status=#{status}</if><if test="projectId != null"> AND p.id=#{projectId}</if></sql>
+<select id="listProjects" resultType="map">SELECT <include refid="ProjectsFields"/> <include refid="ProjectsFrom"/> ORDER BY p.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countProjects" resultType="long">SELECT COUNT(*) <include refid="ProjectsFrom"/></select>
+<select id="project" resultType="map">SELECT <include refid="ProjectsFields"/> FROM project p JOIN app_user u ON u.id=p.owner_id WHERE p.id=#{id}</select>
+<sql id="WorksFields">w.id,w.project_id AS projectId,w.title,w.title AS name,w.description,w.status,w.created_by AS createdBy,w.created_at AS createdAt,p.name AS projectName,(SELECT COUNT(*) FROM work_asset wa WHERE wa.work_id=w.id) AS assetCount</sql>
+<sql id="WorksFrom">FROM work w JOIN project p ON p.id=w.project_id WHERE 1=1 <include refid="ProductionProjectScope"/>
+<if test="q != null"> AND w.title LIKE CONCAT('%',#{q},'%')</if><if test="status != null"> AND w.status=#{status}</if><if test="projectId != null"> AND w.project_id=#{projectId}</if></sql>
+<select id="listWorks" resultType="map">SELECT <include refid="WorksFields"/> <include refid="WorksFrom"/> ORDER BY w.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countWorks" resultType="long">SELECT COUNT(*) <include refid="WorksFrom"/></select>
+<select id="work" resultType="map">SELECT <include refid="WorksFields"/> FROM work w JOIN project p ON p.id=w.project_id WHERE w.id=#{id}</select>
+<sql id="AssetsFields">a.id,a.name,a.kind,a.creator_id AS creatorId,c.name AS creatorName,a.original_filename AS originalFilename,a.original_filename AS filename,a.storage_path AS storagePath,a.mime_type AS mimeType,a.size_bytes AS sizeBytes,a.license_type AS licenseType,a.license_start AS licenseStart,a.license_end AS licenseEnd,CASE WHEN a.all_platforms THEN 'ALL' ELSE (SELECT GROUP_CONCAT(pl.code ORDER BY pl.code SEPARATOR ',') FROM asset_platform apl JOIN platform pl ON pl.id=apl.platform_id WHERE apl.asset_id=a.id) END AS allowedPlatforms,a.description,a.status,a.uploaded_by AS uploadedBy,a.created_at AS createdAt,(SELECT COUNT(*) FROM work_asset wa WHERE wa.asset_id=a.id) AS referenceCount,(SELECT GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ',') FROM asset_tag atg JOIN tag t ON t.id=atg.tag_id WHERE atg.asset_id=a.id) AS tags</sql>
+<sql id="AssetsFrom">FROM asset a JOIN creator c ON c.id=a.creator_id WHERE 1=1
+<if test="productionOwnerId != null or creatorId != null"> AND (
+<if test="creatorId != null">a.creator_id=#{creatorId} OR </if>
+EXISTS(SELECT 1 FROM project_asset pa JOIN project ap ON ap.id=pa.project_id WHERE pa.asset_id=a.id AND (
+<if test="productionOwnerId != null">ap.owner_id=#{productionOwnerId}</if>
+<if test="productionOwnerId != null and creatorId != null"> OR </if>
+<if test="creatorId != null">EXISTS(SELECT 1 FROM project_member pm WHERE pm.project_id=ap.id AND pm.creator_id=#{creatorId})</if>
+))
+)</if>
+<if test="assetId != null"> AND a.id=#{assetId}</if><if test="q != null"> AND (a.name LIKE CONCAT('%',#{q},'%') OR a.description LIKE CONCAT('%',#{q},'%'))</if><if test="status != null"> AND a.status=#{status}</if></sql>
+<select id="listAssets" resultType="map">SELECT <include refid="AssetsFields"/> <include refid="AssetsFrom"/> ORDER BY a.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countAssets" resultType="long">SELECT COUNT(*) <include refid="AssetsFrom"/></select>
+<select id="asset" resultType="map">SELECT <include refid="AssetsFields"/> FROM asset a JOIN creator c ON c.id=a.creator_id WHERE a.id=#{id}</select>
+<sql id="PublicationsFields">pub.id,pub.work_id AS workId,pub.platform_account_id AS platformAccountId,pub.external_id AS externalId,pub.published_at AS publishedAt,pub.url,pub.view_count AS viewCount,pub.created_by AS createdBy,w.title AS workTitle,w.title AS name,w.project_id AS projectId,p.name AS projectName,a.name AS accountName,a.creator_id AS creatorId,c.name AS creatorName,pl.name AS platformName,pl.code AS platformCode</sql>
+<sql id="PublicationsFrom">FROM publication pub JOIN work w ON w.id=pub.work_id JOIN project p ON p.id=w.project_id JOIN platform_account a ON a.id=pub.platform_account_id JOIN platform pl ON pl.id=a.platform_id JOIN creator c ON c.id=a.creator_id WHERE 1=1 <include refid="ProductionProjectScope"/>
+<if test="q != null"> AND (w.title LIKE CONCAT('%',#{q},'%') OR pub.external_id LIKE CONCAT('%',#{q},'%'))</if><if test="projectId != null"> AND w.project_id=#{projectId}</if></sql>
+<select id="listPublications" resultType="map">SELECT <include refid="PublicationsFields"/> <include refid="PublicationsFrom"/> ORDER BY pub.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countPublications" resultType="long">SELECT COUNT(*) <include refid="PublicationsFrom"/></select>
+<select id="publication" resultType="map">SELECT <include refid="PublicationsFields"/> FROM publication pub JOIN work w ON w.id=pub.work_id JOIN project p ON p.id=w.project_id JOIN platform_account a ON a.id=pub.platform_account_id JOIN platform pl ON pl.id=a.platform_id JOIN creator c ON c.id=a.creator_id WHERE pub.id=#{id}</select>
+<sql id="RevenuesFields">r.id,r.publication_id AS publicationId,r.platform_account_id AS platformAccountId,r.source_ref AS sourceRef,r.revenue_date AS revenueDate,r.kind,r.gross_amount AS grossAmount,r.fee_amount AS feeAmount,r.net_amount AS netAmount,r.original_revenue_id AS originalRevenueId,r.contract_id AS contractId,r.status,r.note,r.created_by AS createdBy,r.confirmed_by AS confirmedBy,r.confirmed_at AS confirmedAt,r.created_at AS createdAt,w.title AS workTitle,w.project_id AS projectId,p.name AS projectName,a.creator_id AS creatorId,c.name AS creatorName,pl.name AS platformName,a.name AS accountName,sr.settlement_id AS settlementId</sql>
+<sql id="RevenuesFrom">FROM revenue r JOIN publication pub ON pub.id=r.publication_id JOIN work w ON w.id=pub.work_id JOIN project p ON p.id=w.project_id JOIN platform_account a ON a.id=r.platform_account_id JOIN creator c ON c.id=a.creator_id JOIN platform pl ON pl.id=a.platform_id LEFT JOIN settlement_revenue sr ON sr.revenue_id=r.id WHERE 1=1 <if test='creatorId != null'> AND a.creator_id=#{creatorId}</if><if test='q != null'> AND (r.source_ref LIKE CONCAT('%',#{q},'%') OR w.title LIKE CONCAT('%',#{q},'%'))</if><if test='status != null'> AND r.status=#{status}</if><if test='projectId != null'> AND w.project_id=#{projectId}</if></sql>
+<select id="listRevenues" resultType="map">SELECT <include refid="RevenuesFields"/> <include refid="RevenuesFrom"/> ORDER BY r.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countRevenues" resultType="long">SELECT COUNT(*) <include refid="RevenuesFrom"/></select>
+<select id="revenue" resultType="map">SELECT <include refid="RevenuesFields"/> FROM revenue r JOIN publication pub ON pub.id=r.publication_id JOIN work w ON w.id=pub.work_id JOIN project p ON p.id=w.project_id JOIN platform_account a ON a.id=r.platform_account_id JOIN creator c ON c.id=a.creator_id JOIN platform pl ON pl.id=a.platform_id LEFT JOIN settlement_revenue sr ON sr.revenue_id=r.id WHERE r.id=#{id}</select>
+<sql id="CostsFields">c.id,c.project_id AS projectId,c.contract_id AS contractId,c.category,c.description,c.amount,c.cost_date AS costDate,c.status,c.approved_by AS approvedBy,c.approved_at AS approvedAt,c.created_by AS createdBy,p.name AS projectName,sc.settlement_id AS settlementId</sql>
+<sql id="CostsFrom">FROM project_cost c JOIN project p ON p.id=c.project_id LEFT JOIN settlement_cost sc ON sc.cost_id=c.id WHERE 1=1 <choose><when test="costActorId != null and creatorId != null"> AND (c.created_by=#{costActorId} OR EXISTS(SELECT 1 FROM project_member pm WHERE pm.project_id=c.project_id AND pm.creator_id=#{creatorId}))</when><when test="costActorId != null"> AND c.created_by=#{costActorId}</when><when test="creatorId != null"> AND EXISTS(SELECT 1 FROM project_member pm WHERE pm.project_id=c.project_id AND pm.creator_id=#{creatorId})</when></choose><if test='q != null'> AND (c.description LIKE CONCAT('%',#{q},'%') OR p.name LIKE CONCAT('%',#{q},'%'))</if><if test='status != null'> AND c.status=#{status}</if><if test='projectId != null'> AND c.project_id=#{projectId}</if></sql>
+<select id="listCosts" resultType="map">SELECT <include refid="CostsFields"/> <include refid="CostsFrom"/> ORDER BY c.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countCosts" resultType="long">SELECT COUNT(*) <include refid="CostsFrom"/></select>
+<select id="cost" resultType="map">SELECT <include refid="CostsFields"/> FROM project_cost c JOIN project p ON p.id=c.project_id LEFT JOIN settlement_cost sc ON sc.cost_id=c.id WHERE c.id=#{id}</select>
+<sql id="ContractsFields">c.id,c.project_id AS projectId,c.name,c.start_date AS startDate,c.end_date AS endDate,c.studio_rate AS studioRate,c.status,c.created_by AS createdBy,c.created_at AS createdAt,p.name AS projectName</sql>
+<sql id="ContractsFrom">FROM contract c JOIN project p ON p.id=c.project_id WHERE 1=1 <if test='creatorId != null'> AND EXISTS(SELECT 1 FROM contract_participant cp WHERE cp.contract_id=c.id AND cp.creator_id=#{creatorId})</if><if test='q != null'> AND (c.name LIKE CONCAT('%',#{q},'%') OR p.name LIKE CONCAT('%',#{q},'%'))</if><if test='status != null'> AND c.status=#{status}</if><if test='projectId != null'> AND c.project_id=#{projectId}</if></sql>
+<select id="listContracts" resultType="map">SELECT <include refid="ContractsFields"/> <include refid="ContractsFrom"/> ORDER BY c.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countContracts" resultType="long">SELECT COUNT(*) <include refid="ContractsFrom"/></select>
+<select id="contract" resultType="map">SELECT <include refid="ContractsFields"/> FROM contract c JOIN project p ON p.id=c.project_id WHERE c.id=#{id}</select>
+<sql id="SettlementsFields">s.id,s.settlement_no AS settlementNo,s.contract_id AS contractId,s.project_id AS projectId,s.period_start AS periodStart,s.period_end AS periodEnd,s.total_income AS totalIncome,s.total_cost AS totalCost,s.distributable_amount AS distributableAmount,s.studio_rate AS studioRate,s.studio_amount AS studioAmount,s.status,s.created_by AS createdBy,s.submitted_by AS submittedBy,s.submitted_at AS submittedAt,s.approved_by AS approvedBy,s.approved_at AS approvedAt,s.reject_reason AS rejectReason,s.created_at AS createdAt,c.name AS contractName,p.name AS projectName</sql>
+<sql id="SettlementsFrom">FROM settlement s JOIN contract c ON c.id=s.contract_id JOIN project p ON p.id=s.project_id WHERE 1=1 <if test='creatorId != null'> AND EXISTS(SELECT 1 FROM settlement_line sl WHERE sl.settlement_id=s.id AND sl.creator_id=#{creatorId})</if><if test='q != null'> AND (s.settlement_no LIKE CONCAT('%',#{q},'%') OR p.name LIKE CONCAT('%',#{q},'%'))</if><if test='status != null'> AND s.status=#{status}</if><if test='projectId != null'> AND s.project_id=#{projectId}</if></sql>
+<select id="listSettlements" resultType="map">SELECT <include refid="SettlementsFields"/> <include refid="SettlementsFrom"/> ORDER BY s.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countSettlements" resultType="long">SELECT COUNT(*) <include refid="SettlementsFrom"/></select>
+<select id="settlement" resultType="map">SELECT <include refid="SettlementsFields"/> FROM settlement s JOIN contract c ON c.id=s.contract_id JOIN project p ON p.id=s.project_id WHERE s.id=#{id}</select>
+<sql id="PaymentsFields">p.id,p.creator_id AS creatorId,c.name AS creatorName,p.amount,p.paid_at AS paidAt,p.reference,p.note,p.created_by AS createdBy,p.created_at AS createdAt</sql>
+<sql id="PaymentsFrom">FROM payment p JOIN creator c ON c.id=p.creator_id WHERE 1=1 <if test='creatorId != null'> AND p.creator_id=#{creatorId}</if><if test='q != null'> AND (p.reference LIKE CONCAT('%',#{q},'%') OR c.name LIKE CONCAT('%',#{q},'%'))</if></sql>
+<select id="listPayments" resultType="map">SELECT <include refid="PaymentsFields"/> <include refid="PaymentsFrom"/> ORDER BY p.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countPayments" resultType="long">SELECT COUNT(*) <include refid="PaymentsFrom"/></select>
+<sql id="AuditLogsFields">a.id,a.user_id AS userId,u.display_name AS userName,a.action,a.entity_type AS entityType,a.entity_id AS entityId,a.detail,a.created_at AS createdAt</sql>
+<sql id="AuditLogsFrom">FROM audit_log a JOIN app_user u ON u.id=a.user_id WHERE 1=1 <if test='q != null'> AND (a.detail LIKE CONCAT('%',#{q},'%') OR a.action LIKE CONCAT('%',#{q},'%'))</if></sql>
+<select id="listAuditLogs" resultType="map">SELECT <include refid="AuditLogsFields"/> <include refid="AuditLogsFrom"/> ORDER BY a.id DESC <if test="limit != null">LIMIT #{limit} OFFSET #{offset}</if></select>
+<select id="countAuditLogs" resultType="long">SELECT COUNT(*) <include refid="AuditLogsFrom"/></select>
+
+<select id="projectMembers" resultType="map">SELECT c.id,c.id AS creatorId,c.name,c.name AS creatorName FROM project_member pm JOIN creator c ON c.id=pm.creator_id WHERE pm.project_id=#{id}</select>
+<select id="workAssets" resultType="map">SELECT <include refid="AssetsFields"/> FROM asset a JOIN creator c ON c.id=a.creator_id JOIN work_asset wa ON wa.asset_id=a.id WHERE wa.work_id=#{id}</select>
+<select id="contractParticipants" resultType="map">SELECT cp.creator_id AS creatorId,c.name AS creatorName,cp.rate FROM contract_participant cp JOIN creator c ON c.id=cp.creator_id WHERE cp.contract_id=#{id}</select>
+<select id="settlementLines" resultType="map">SELECT sl.id,sl.creator_id AS creatorId,c.name AS creatorName,sl.rate,sl.amount FROM settlement_line sl JOIN creator c ON c.id=sl.creator_id WHERE sl.settlement_id=#{id}</select>
+<select id="settlementRevenues" resultType="map">SELECT r.id,r.source_ref AS sourceRef,r.revenue_date AS revenueDate,r.kind,sr.net_amount AS netAmount,a.creator_id AS creatorId FROM settlement_revenue sr JOIN revenue r ON r.id=sr.revenue_id JOIN platform_account a ON a.id=r.platform_account_id WHERE sr.settlement_id=#{id}</select>
+<select id="settlementCosts" resultType="map">SELECT c.id,c.category,c.description,c.cost_date AS costDate,sc.amount FROM settlement_cost sc JOIN project_cost c ON c.id=sc.cost_id WHERE sc.settlement_id=#{id}</select>
+<select id="settlementHistory" resultType="map">SELECT h.id,h.from_status AS fromStatus,h.to_status AS toStatus,h.actor_id AS actorId,u.display_name AS actorName,h.reason,h.created_at AS createdAt FROM settlement_history h JOIN app_user u ON u.id=h.actor_id WHERE h.settlement_id=#{id} ORDER BY h.id</select>
+<select id="platforms" resultType="map">SELECT id,code,name FROM platform ORDER BY id</select>
+<select id="userOptions" resultType="map">SELECT u.id,u.display_name AS name,u.username FROM app_user u WHERE u.status='ACTIVE' AND EXISTS(SELECT 1 FROM user_role ur JOIN app_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code IN ('ADMIN','PRODUCER')) ORDER BY u.id</select>
+<select id="balances" resultType="map">SELECT c.id AS creatorId,c.name AS creatorName,COALESCE(e.earned,0) AS earned,COALESCE(p.paid,0) AS paid,COALESCE(e.earned,0)-COALESCE(p.paid,0) AS balance FROM creator c LEFT JOIN (SELECT sl.creator_id,SUM(sl.amount) earned FROM settlement_line sl JOIN settlement s ON s.id=sl.settlement_id WHERE s.status='APPROVED' GROUP BY sl.creator_id) e ON e.creator_id=c.id LEFT JOIN (SELECT creator_id,SUM(amount) paid FROM payment GROUP BY creator_id) p ON p.creator_id=c.id <if test="creatorId != null">WHERE c.id=#{creatorId}</if> ORDER BY c.id</select>
+<select id="balance" resultType="map">SELECT (SELECT COALESCE(SUM(sl.amount),0) FROM settlement_line sl JOIN settlement s ON s.id=sl.settlement_id WHERE s.status='APPROVED' AND sl.creator_id=#{id})-(SELECT COALESCE(SUM(amount),0) FROM payment WHERE creator_id=#{id}) AS balance</select>
+<insert id="insertCreator" useGeneratedKeys="true" keyProperty="id">INSERT INTO creator(name,handle,email,phone,bio,status,created_at,updated_at) VALUES(#{name},#{handle},#{email},#{phone},#{bio},#{status},NOW(),NOW())</insert>
+<update id="updateCreator">UPDATE creator SET name=#{name},handle=#{handle},email=#{email},phone=#{phone},bio=#{bio},status=#{status},updated_at=NOW() WHERE id=#{id}</update>
+<insert id="insertAccount" useGeneratedKeys="true" keyProperty="id">INSERT INTO platform_account(platform_id,creator_id,name,external_id,status,created_at,updated_at) VALUES(#{platformId},#{creatorId},#{name},#{externalId},#{status},NOW(),NOW())</insert>
+<update id="updateAccount">UPDATE platform_account SET platform_id=#{platformId},creator_id=#{creatorId},name=#{name},external_id=#{externalId},status=#{status},updated_at=NOW() WHERE id=#{id}</update>
+<insert id="insertProject" useGeneratedKeys="true" keyProperty="id">INSERT INTO project(name,client_name,description,budget,start_date,due_date,status,owner_id,created_at,updated_at) VALUES(#{name},#{clientName},#{description},#{budget},#{startDate},#{dueDate},#{status},#{ownerId},NOW(),NOW())</insert>
+<update id="updateProject">UPDATE project SET name=#{name},client_name=#{clientName},description=#{description},budget=#{budget},start_date=#{startDate},due_date=#{dueDate},status=#{status},owner_id=#{ownerId},updated_at=NOW() WHERE id=#{id}</update>
+<delete id="deleteMembers">DELETE FROM project_member WHERE project_id=#{id}</delete>
+<insert id="addMember">INSERT INTO project_member(project_id,creator_id) VALUES(#{projectId},#{creatorId})</insert>
+<insert id="insertWork" useGeneratedKeys="true" keyProperty="id">INSERT INTO work(project_id,title,description,status,created_by,created_at,updated_at) VALUES(#{projectId},#{title},#{description},#{status},#{actorId},NOW(),NOW())</insert>
+<update id="updateWork">UPDATE work SET project_id=#{projectId},title=#{title},description=#{description},status=#{status},updated_at=NOW() WHERE id=#{id}</update>
+<delete id="deleteWorkAssets">DELETE FROM work_asset WHERE work_id=#{id}</delete>
+<insert id="addWorkAsset">INSERT INTO work_asset(work_id,asset_id) VALUES(#{workId},#{assetId})</insert>
+<insert id="insertAsset" useGeneratedKeys="true" keyProperty="id">INSERT INTO asset(name,kind,creator_id,original_filename,storage_path,mime_type,size_bytes,license_type,license_start,license_end,all_platforms,description,status,uploaded_by,created_at,updated_at) VALUES(#{name},#{kind},#{creatorId},#{originalFilename},#{storagePath},#{mimeType},#{sizeBytes},#{licenseType},#{licenseStart},#{licenseEnd},#{allPlatforms},#{description},'ACTIVE',#{actorId},NOW(),NOW())</insert>
+<update id="updateAsset">UPDATE asset SET name=#{name},kind=#{kind},creator_id=#{creatorId},license_type=#{licenseType},license_start=#{licenseStart},license_end=#{licenseEnd},all_platforms=#{allPlatforms},description=#{description},status=#{status},updated_at=NOW() WHERE id=#{id}</update>
+<delete id="deleteTags">DELETE FROM asset_tag WHERE asset_id=#{id}</delete>
+<insert id="insertTag">INSERT IGNORE INTO tag(name) VALUES(#{name})</insert>
+<insert id="addAssetTag">INSERT IGNORE INTO asset_tag(asset_id,tag_id) SELECT #{assetId},id FROM tag WHERE name=#{name}</insert>
+<insert id="insertPublication" useGeneratedKeys="true" keyProperty="id">INSERT INTO publication(work_id,platform_account_id,external_id,published_at,url,view_count,created_by,created_at) VALUES(#{workId},#{platformAccountId},#{externalId},#{publishedAt},#{url},0,#{actorId},NOW())</insert>
+<insert id="insertRevenue" useGeneratedKeys="true" keyProperty="id">INSERT INTO revenue(publication_id,platform_account_id,source_ref,revenue_date,kind,gross_amount,fee_amount,original_revenue_id,contract_id,status,note,import_batch_id,created_by,created_at) VALUES(#{publicationId},#{platformAccountId},#{sourceRef},#{revenueDate},#{kind},#{grossAmount},#{feeAmount},#{originalRevenueId},#{contractId},'DRAFT',#{note},#{importBatchId},#{actorId},NOW())</insert>
+<update id="confirmRevenue">UPDATE revenue SET status='CONFIRMED',contract_id=#{contractId},confirmed_by=#{actorId},confirmed_at=NOW() WHERE id=#{id} AND status='DRAFT'</update>
+<select id="matchingContract" resultType="map">SELECT id,studio_rate AS studioRate FROM contract WHERE project_id=#{projectId} AND status='ACTIVE' AND #{date} BETWEEN start_date AND end_date</select>
+<select id="duplicateRevenue" resultType="map">SELECT id FROM revenue WHERE platform_account_id=#{accountId} AND source_ref=#{sourceRef} AND kind=#{kind}</select>
+<select id="refundedAmount" resultType="java.math.BigDecimal">SELECT COALESCE(SUM(gross_amount),0) FROM revenue WHERE original_revenue_id=#{id}</select>
+<insert id="insertImportBatch" useGeneratedKeys="true" keyProperty="id">INSERT INTO import_batch(filename,total_rows,inserted_rows,created_by,created_at) VALUES(#{filename},#{totalRows},#{insertedRows},#{actorId},NOW())</insert>
+<insert id="insertCost" useGeneratedKeys="true" keyProperty="id">INSERT INTO project_cost(project_id,category,description,amount,cost_date,status,created_by,created_at) VALUES(#{projectId},#{category},#{description},#{amount},#{costDate},'DRAFT',#{actorId},NOW())</insert>
+<update id="approveCost">UPDATE project_cost SET status='APPROVED',contract_id=#{contractId},approved_by=#{actorId},approved_at=NOW() WHERE id=#{id} AND status='DRAFT'</update>
+<insert id="insertContract" useGeneratedKeys="true" keyProperty="id">INSERT INTO contract(project_id,name,start_date,end_date,studio_rate,status,created_by,created_at,updated_at) VALUES(#{projectId},#{name},#{startDate},#{endDate},#{studioRate},'DRAFT',#{actorId},NOW(),NOW())</insert>
+<insert id="addParticipant">INSERT INTO contract_participant(contract_id,creator_id,rate) VALUES(#{contractId},#{creatorId},#{rate})</insert>
+<select id="overlappingContracts" resultType="long">SELECT COUNT(*) FROM contract WHERE project_id=#{projectId} AND id != #{id} AND status='ACTIVE' AND start_date &lt;= #{endDate} AND end_date &gt;= #{startDate}</select>
+<update id="activateContract">UPDATE contract SET status='ACTIVE',updated_at=NOW() WHERE id=#{id}</update>
+<select id="generateSettlement" statementType="CALLABLE">{CALL sp_generate_settlement(#{contractId,mode=IN,jdbcType=BIGINT},#{periodStart,mode=IN,jdbcType=DATE},#{periodEnd,mode=IN,jdbcType=DATE},#{actorId,mode=IN,jdbcType=BIGINT},#{id,mode=OUT,jdbcType=BIGINT})}</select>
+<update id="submitSettlement">UPDATE settlement SET status='SUBMITTED',submitted_by=#{actorId},submitted_at=NOW(),reject_reason=NULL,last_actor_id=#{actorId},updated_at=NOW() WHERE id=#{id}</update>
+<update id="approveSettlement">UPDATE settlement SET status='APPROVED',approved_by=#{actorId},approved_at=NOW(),last_actor_id=#{actorId},updated_at=NOW() WHERE id=#{id}</update>
+<update id="rejectSettlement">UPDATE settlement SET status='DRAFT',reject_reason=#{reason},last_actor_id=#{actorId},updated_at=NOW() WHERE id=#{id}</update>
+<select id="lockCreator" resultType="map">SELECT id FROM creator WHERE id=#{id} FOR UPDATE</select>
+<select id="lockProject" resultType="map">SELECT id FROM project WHERE id=#{id} FOR UPDATE</select>
+<select id="lockContract" resultType="map">SELECT id,project_id AS projectId FROM contract WHERE id=#{id} FOR UPDATE</select>
+<select id="lockRevenue" resultType="map">SELECT id FROM revenue WHERE id=#{id} FOR UPDATE</select>
+<select id="lockCost" resultType="map">SELECT id FROM project_cost WHERE id=#{id} FOR UPDATE</select>
+<select id="lockSettlement" resultType="map">SELECT id FROM settlement WHERE id=#{id} FOR UPDATE</select>
+<insert id="insertPayment" useGeneratedKeys="true" keyProperty="id">INSERT INTO payment(creator_id,amount,paid_at,reference,note,created_by,created_at) VALUES(#{creatorId},#{amount},#{paidAt},#{reference},#{note},#{actorId},NOW())</insert>
+<select id="dashboardRevenue" resultType="map">SELECT COALESCE(SUM(r.net_amount),0) AS revenue,COALESCE(SUM(CASE WHEN sr.revenue_id IS NULL THEN r.net_amount ELSE 0 END),0) AS unsettled FROM revenue r LEFT JOIN settlement_revenue sr ON sr.revenue_id=r.id JOIN platform_account a ON a.id=r.platform_account_id WHERE r.status='CONFIRMED' <if test="creatorId != null">AND a.creator_id=#{creatorId}</if></select>
+<select id="dashboardTrend" resultType="map">SELECT month,SUM(revenue) AS revenue,SUM(cost) AS cost FROM (SELECT DATE_FORMAT(r.revenue_date,'%Y-%m') month,SUM(r.net_amount) revenue,0 cost FROM revenue r JOIN platform_account a ON a.id=r.platform_account_id WHERE r.status='CONFIRMED' <if test="creatorId != null">AND a.creator_id=#{creatorId}</if> GROUP BY month UNION ALL SELECT DATE_FORMAT(c.cost_date,'%Y-%m') month,0 revenue,SUM(c.amount) cost FROM project_cost c WHERE c.status='APPROVED' <if test="creatorId != null">AND EXISTS(SELECT 1 FROM project_member pm WHERE pm.project_id=c.project_id AND pm.creator_id=#{creatorId})</if> GROUP BY month) monthly GROUP BY month ORDER BY month</select>
+<select id="dashboardPlatforms" resultType="map">SELECT p.name,COALESCE(SUM(r.net_amount),0) amount FROM revenue r JOIN platform_account a ON a.id=r.platform_account_id JOIN platform p ON p.id=a.platform_id WHERE r.status='CONFIRMED' <if test="creatorId != null">AND a.creator_id=#{creatorId}</if> GROUP BY p.id,p.name ORDER BY amount DESC</select>
+<select id="workPublicationCount" resultType="long">SELECT COUNT(*) FROM publication WHERE work_id=#{id}</select>
+<select id="accountPublicationCount" resultType="long">SELECT COUNT(*) FROM publication WHERE platform_account_id=#{id}</select>
+<delete id="deleteAssetPlatforms">DELETE FROM asset_platform WHERE asset_id=#{id}</delete>
+<insert id="addAssetPlatform">INSERT INTO asset_platform(asset_id,platform_id) SELECT #{assetId},id FROM platform WHERE code=#{code}</insert>
+<select id="assetProjects" resultType="long">SELECT project_id FROM project_asset WHERE asset_id=#{assetId} ORDER BY project_id</select>
+<select id="lockAsset" resultType="map">SELECT id FROM asset WHERE id=#{id} FOR UPDATE</select>
+<select id="assetProjectReferences" resultType="long">SELECT COUNT(*) FROM work_asset wa JOIN work w ON w.id=wa.work_id WHERE wa.asset_id=#{assetId} AND w.project_id=#{projectId}</select>
+<insert id="shareAsset">INSERT IGNORE INTO project_asset(project_id,asset_id,shared_by,created_at) VALUES(#{projectId},#{assetId},#{actorId},NOW())</insert>
+<delete id="removeAssetProject">DELETE FROM project_asset WHERE asset_id=#{assetId} AND project_id=#{projectId}</delete>
+<select id="projectOwnerEligible" resultType="long">SELECT COUNT(*) FROM app_user u WHERE u.id=#{userId} AND u.status='ACTIVE' AND EXISTS(SELECT 1 FROM user_role ur JOIN app_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code IN ('ADMIN','PRODUCER'))</select>
+</mapper>

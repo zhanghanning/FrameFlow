@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.mapper.AuthMapper">
+  <sql id="userFields">id,username,password_digest AS passwordDigest,display_name AS displayName,creator_id AS creatorId,status</sql>
+  <select id="userByUsername" resultType="map">SELECT <include refid="userFields"/> FROM app_user WHERE username=#{username}</select>
+  <select id="userById" resultType="map">SELECT <include refid="userFields"/> FROM app_user WHERE id=#{id}</select>
+  <select id="lockUser" resultType="map">SELECT <include refid="userFields"/> FROM app_user WHERE id=#{id} FOR UPDATE</select>
+  <insert id="insertPersonalCreator" useGeneratedKeys="true" keyProperty="id">INSERT INTO creator(name,handle,bio) VALUES(#{name},#{handle},'自主注册创建的个人创作者档案')</insert>
+  <update id="bindCreator">UPDATE app_user SET creator_id=#{creatorId},updated_at=NOW() WHERE id=#{userId}</update>
+  <select id="creatorExists" resultType="boolean">SELECT EXISTS(SELECT 1 FROM creator WHERE id=#{creatorId})</select>
+  <select id="session" resultType="map">SELECT u.id,u.username,u.display_name AS displayName,u.creator_id AS creatorId,u.status FROM user_session s JOIN app_user u ON u.id=s.user_id WHERE s.token=#{token} AND s.expires_at &gt; NOW() AND u.status='ACTIVE'</select>
+  <select id="roles" resultType="string">SELECT r.code FROM user_role ur JOIN app_role r ON r.id=ur.role_id WHERE ur.user_id=#{userId} ORDER BY r.id</select>
+  <sql id="userListWhere">
+    <where>
+      <if test="q != null">AND (u.username LIKE CONCAT('%',#{q},'%') OR u.display_name LIKE CONCAT('%',#{q},'%'))</if>
+      <if test="status != null">AND u.status=#{status}</if>
+      <if test="assignment == 'PENDING'">
+        AND NOT EXISTS(SELECT 1 FROM user_role ur JOIN app_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code IN ('ADMIN','PRODUCER','FINANCE','REVIEWER'))
+      </if>
+      <if test="assignment == 'ASSIGNED'">
+        AND EXISTS(SELECT 1 FROM user_role ur JOIN app_role r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code IN ('ADMIN','PRODUCER','FINANCE','REVIEWER'))
+      </if>
+    </where>
+  </sql>
+  <select id="users" resultType="map">
+    SELECT u.id,u.username,u.display_name AS displayName,u.creator_id AS creatorId,c.name AS creatorName,u.status,u.created_at AS createdAt
+    FROM app_user u LEFT JOIN creator c ON c.id=u.creator_id
+    <include refid="userListWhere"/>
+    ORDER BY u.id LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="countUsers" resultType="long">
+    SELECT COUNT(*) FROM app_user u <include refid="userListWhere"/>
+  </select>
+  <select id="demoUsers" resultType="map">SELECT id FROM app_user WHERE password_digest='DEMO_PASSWORD'</select>
+  <update id="password">UPDATE app_user SET password_digest=#{digest},updated_at=NOW() WHERE id=#{id}</update>
+  <insert id="newSession">INSERT INTO user_session(token,user_id,expires_at,created_at) VALUES(#{token},#{userId},DATE_ADD(NOW(),INTERVAL 12 HOUR),NOW())</insert>
+  <delete id="logout">DELETE FROM user_session WHERE token=#{token}</delete>
+  <delete id="invalidateOthers">DELETE FROM user_session WHERE user_id=#{userId} AND token != #{token}</delete>
+  <insert id="insertUser" useGeneratedKeys="true" keyProperty="id">INSERT INTO app_user(username,password_digest,display_name,creator_id,status,created_at,updated_at) VALUES(#{username},#{passwordDigest},#{displayName},#{creatorId},'ACTIVE',NOW(),NOW())</insert>
+  <update id="updateUser">UPDATE app_user SET display_name=#{displayName},creator_id=#{creatorId},status=#{status},updated_at=NOW() WHERE id=#{id}</update>
+  <delete id="deleteRoles">DELETE FROM user_role WHERE user_id=#{id}</delete>
+  <insert id="addRole">INSERT INTO user_role(user_id,role_id) SELECT #{id},id FROM app_role WHERE code=#{role}</insert>
+  <insert id="audit">INSERT INTO audit_log(user_id,action,entity_type,entity_id,detail,created_at) VALUES(#{userId},#{action},#{entityType},#{entityId},#{detail},NOW())</insert>
+  <sql id="roleApplicationWhere">
+    <where>
+      <if test="userId != null">AND a.user_id=#{userId}</if>
+      <if test="status != null">AND a.status=#{status}</if>
+      <if test="q != null">AND (u.username LIKE CONCAT('%',#{q},'%') OR u.display_name LIKE CONCAT('%',#{q},'%') OR a.reason LIKE CONCAT('%',#{q},'%') OR r.name LIKE CONCAT('%',#{q},'%'))</if>
+    </where>
+  </sql>
+  <select id="roleApplications" resultType="map">
+    SELECT a.id,a.user_id AS userId,u.username,u.display_name AS displayName,a.requested_role AS requestedRole,
+           a.reason,a.status,a.review_note AS reviewNote,a.reviewed_by AS reviewedBy,reviewer.display_name AS reviewerName,
+           a.created_at AS createdAt,a.reviewed_at AS reviewedAt
+    FROM role_application a JOIN app_user u ON u.id=a.user_id JOIN app_role r ON r.code=a.requested_role
+    LEFT JOIN app_user reviewer ON reviewer.id=a.reviewed_by
+    <include refid="roleApplicationWhere"/>
+    ORDER BY a.id DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="countRoleApplications" resultType="long">
+    SELECT COUNT(*) FROM role_application a JOIN app_user u ON u.id=a.user_id JOIN app_role r ON r.code=a.requested_role
+    <include refid="roleApplicationWhere"/>
+  </select>
+  <insert id="insertRoleApplication" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO role_application(user_id,requested_role,reason) VALUES(#{userId},#{requestedRole},#{reason})
+  </insert>
+  <select id="lockRoleApplication" resultType="map">
+    SELECT id,user_id AS userId,requested_role AS requestedRole,reason,status FROM role_application WHERE id=#{id} FOR UPDATE
+  </select>
+  <update id="reviewRoleApplication">
+    UPDATE role_application SET status=#{status},review_note=#{reviewNote},reviewed_by=#{reviewedBy},reviewed_at=NOW() WHERE id=#{id}
+  </update>
+</mapper>

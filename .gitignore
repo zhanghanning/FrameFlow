@@ -1,0 +1,15 @@
+node_modules/
+dist/
+target/
+.env
+.env.local
+.idea/workspace.xml
+.idea/shelf/
+.idea/dataSources.local.xml
+.runtime/
+uploads/
+tmp/
+*.log
+.env.test
+__pycache__/
+*.pyc
