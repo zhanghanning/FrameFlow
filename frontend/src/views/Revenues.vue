@@ -21,6 +21,7 @@ import {
 import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import LoadError from "../components/LoadError.vue";
+import FinanceGuide from "../components/FinanceGuide.vue";
 const query = reactive({
     q: "",
     status: "",
@@ -206,7 +207,7 @@ onMounted(async () => {
       @click="open()"
       >登记收入</el-button
     ></PageHeader
-  ><LoadError :message="error" @retry="load" />
+  ><FinanceGuide stage="revenues" /><LoadError :message="error" @retry="load" />
   <div class="notice-banner">
     <el-icon style="font-size: 17px; flex-shrink: 0"><Document /></el-icon
     ><span

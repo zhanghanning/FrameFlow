@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-13",
+  "mode": "integration disabled by default",
+  "frontendBuild": "passed",
+  "backendTests": {
+    "passed": 16,
+    "failed": 0
+  },
+  "backendPackage": "passed",
+  "liveReadEndpoints": [
+    "/platform-accounts",
+    "/works",
+    "/publications",
+    "/revenues",
+    "/costs",
+    "/contracts",
+    "/settlements",
+    "/balances"
+  ],
+  "liveDisabledRoutes": {
+    "GET /platform-integrations": 404,
+    "GET /platform-connections": 404,
+    "GET /platform-content": 404,
+    "POST /platform-integrations/YOUTUBE/authorize": 404,
+    "POST /platform-connections/1/sync": 404,
+    "DELETE /platform-connections/1": 404,
+    "GET /platform-integrations/YOUTUBE/callback": 404
+  },
+  "browserChecks": [
+    "manual account ledger and platform logos visible",
+    "manual account dialog opens",
+    "no integration cards or connections tab",
+    "works and publications tabs remain",
+    "legacy platform tab URL returns to /works",
+    "existing publication rows remain visible"
+  ],
+  "screenshot": "screenshots/platform-accounts-simplified.jpg"
+}

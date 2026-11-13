@@ -454,11 +454,11 @@ public class StudioService {
     else {
       var old = required(db.account(key), "平台账号");
       creatorWriteAccess(id(old.get("creatorId")));
-      if (db.accountPublicationCount(key) > 0
+      if ((db.accountPublicationCount(key) > 0 || db.accountConnectionCount(key) > 0)
           && (id(old.get("creatorId")) != request.creatorId()
               || id(old.get("platformId")) != request.platformId()
               || !Objects.equals(old.get("externalId"), request.externalId())))
-        throw BusinessException.conflict("已有发布记录的账号归属、平台和外部账号ID保持固定");
+        throw BusinessException.conflict("已有发布记录或授权连接的账号归属、平台和外部账号ID保持固定");
       row.put("id", key);
       db.updateAccount(row);
     }

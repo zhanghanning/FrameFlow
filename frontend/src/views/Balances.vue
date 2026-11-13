@@ -5,6 +5,7 @@ import { ElMessage } from "element-plus";
 import { api, hasRole, money, date, fail, listItems } from "../lib/api";
 import PageHeader from "../components/PageHeader.vue";
 import LoadError from "../components/LoadError.vue";
+import FinanceGuide from "../components/FinanceGuide.vue";
 const balances = ref([]),
   payments = ref([]),
   loading = ref(false),
@@ -85,7 +86,7 @@ onMounted(load);
       @click="open()"
       >登记线下付款</el-button
     ></PageHeader
-  ><LoadError :message="error" @retry="load" />
+  ><FinanceGuide stage="payments" /><LoadError :message="error" @retry="load" />
   <div v-loading="loading">
     <div class="metric-strip balance-metrics">
       <div class="metric-card">

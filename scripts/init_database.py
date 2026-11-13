@@ -15,7 +15,7 @@ if env_file.exists():
     for line in env_file.read_text().splitlines():
         if '=' in line and not line.startswith('#'):
             key, value = line.split('=', 1)
-            settings[key] = shlex.split(value)[0]
+            settings[key] = (shlex.split(value) or [''])[0]
 password = settings.get('DB_PASSWORD', secrets.token_urlsafe(30))
 quoted_password = password.replace("'", "''")
 owner = pwd.getpwnam(root.owner())
@@ -33,6 +33,8 @@ for database, user, env_name, uploads, port in [
     else:
         print(f'{database}: 已存在业务表，保留数据')
     subprocess.run(['mysql', database], input=(root / 'database/identity-workflow.sql').read_text(), text=True, check=True)
+    subprocess.run(['mysql', database], input=(root / 'database/platform-integration.sql').read_text(), text=True, check=True)
+    subprocess.run(['mysql', database], input=(root / 'database/settlement-workflow.sql').read_text(), text=True, check=True)
     target = root / env_name
     if not target.exists():
         target.write_text(f"DB_URL='jdbc:mysql://localhost:3306/{database}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai'\nDB_USER={user}\nDB_PASSWORD='{password}'\nUPLOAD_DIR={uploads}\nSERVER_PORT={port}\nJAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64\n", encoding='utf-8')

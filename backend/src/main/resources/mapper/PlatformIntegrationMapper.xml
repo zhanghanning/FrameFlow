@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.frameflow.mapper.PlatformIntegrationMapper">
+  <select id="platforms" resultType="map">SELECT id,code,name FROM platform ORDER BY id</select>
+  <select id="platform" resultType="map">SELECT id,code,name FROM platform WHERE code=#{code}</select>
+  <select id="lockPlatform" resultType="map">SELECT id FROM platform WHERE id=#{id} FOR UPDATE</select>
+  <insert id="insertAttempt">INSERT INTO oauth_attempt(state,platform_id,user_id,creator_id,code_verifier,expires_at) VALUES(#{state},#{platformId},#{userId},#{creatorId},#{codeVerifier},DATE_ADD(NOW(),INTERVAL 10 MINUTE))</insert>
+  <select id="attempt" resultType="map">SELECT state,platform_id AS platformId,user_id AS userId,creator_id AS creatorId,code_verifier AS codeVerifier FROM oauth_attempt WHERE state=#{state}</select>
+  <update id="consumeAttempt">UPDATE oauth_attempt SET consumed_at=NOW(),code_verifier=NULL WHERE state=#{state} AND platform_id=#{platformId} AND consumed_at IS NULL AND expires_at&gt;NOW()</update>
+  <select id="accountByExternal" resultType="map">SELECT id,creator_id AS creatorId FROM platform_account WHERE platform_id=#{platformId} AND external_id=#{externalId} FOR UPDATE</select>
+  <insert id="insertAccount" useGeneratedKeys="true" keyProperty="id">INSERT INTO platform_account(platform_id,creator_id,name,external_id,status) VALUES(#{platformId},#{creatorId},#{name},#{externalId},'ACTIVE')</insert>
+  <update id="updateAccountName">UPDATE platform_account SET name=#{name},status='ACTIVE',updated_at=NOW() WHERE id=#{id}</update>
+  <insert id="saveConnection">INSERT INTO platform_connection(platform_account_id,authorized_by,access_token_encrypted,refresh_token_encrypted,token_expires_at,refresh_expires_at,granted_scopes,status) VALUES(#{accountId},#{authorizedBy},#{accessToken},#{refreshToken},#{tokenExpiresAt},#{refreshExpiresAt},#{grantedScopes},'CONNECTED') ON DUPLICATE KEY UPDATE authorized_by=VALUES(authorized_by),access_token_encrypted=VALUES(access_token_encrypted),refresh_token_encrypted=VALUES(refresh_token_encrypted),token_expires_at=VALUES(token_expires_at),refresh_expires_at=VALUES(refresh_expires_at),granted_scopes=VALUES(granted_scopes),status='CONNECTED',last_error=NULL,updated_at=NOW()</insert>
+  <sql id="ConnectionFields">pc.id,pc.platform_account_id AS accountId,p.code AS platformCode,p.name AS platformName,a.creator_id AS creatorId,a.name AS accountName,a.external_id AS externalId,pc.authorized_by AS authorizedBy,pc.status,pc.last_synced_at AS lastSyncedAt,pc.last_error AS lastError,pc.token_expires_at AS tokenExpiresAt,pc.refresh_expires_at AS refreshExpiresAt,(pc.refresh_token_encrypted IS NOT NULL) AS refreshAvailable,(SELECT COUNT(*) FROM platform_content content WHERE content.connection_id=pc.id) AS contentCount</sql>
+  <sql id="ConnectionFrom">FROM platform_connection pc JOIN platform_account a ON a.id=pc.platform_account_id JOIN platform p ON p.id=a.platform_id</sql>
+  <sql id="PrivateFields">pc.access_token_encrypted AS accessToken,pc.refresh_token_encrypted AS refreshToken,pc.granted_scopes AS grantedScopes</sql>
+  <select id="connection" resultType="map">SELECT <include refid="ConnectionFields"/>,<include refid="PrivateFields"/> <include refid="ConnectionFrom"/> WHERE pc.id=#{id}</select>
+  <select id="connectionByAccount" resultType="map">SELECT <include refid="ConnectionFields"/>,<include refid="PrivateFields"/> <include refid="ConnectionFrom"/> WHERE pc.platform_account_id=#{accountId}</select>
+  <select id="connections" resultType="map">SELECT <include refid="ConnectionFields"/> <include refid="ConnectionFrom"/> <where><if test="creatorId != null">a.creator_id=#{creatorId}</if></where> ORDER BY pc.id DESC</select>
+  <update id="updateToken">UPDATE platform_connection SET access_token_encrypted=#{accessToken},refresh_token_encrypted=#{refreshToken},token_expires_at=#{tokenExpiresAt},refresh_expires_at=#{refreshExpiresAt},granted_scopes=#{grantedScopes},updated_at=NOW() WHERE id=#{id}</update>
+  <update id="disconnect">UPDATE platform_connection SET status='DISCONNECTED',access_token_encrypted=NULL,refresh_token_encrypted=NULL,token_expires_at=NULL,refresh_expires_at=NULL,granted_scopes=NULL,last_error=NULL,updated_at=NOW() WHERE id=#{id}</update>
+  <update id="connectionError">UPDATE platform_connection SET status=#{status},last_error=#{error},updated_at=NOW() WHERE id=#{id}</update>
+  <update id="synced">UPDATE platform_connection SET status='CONNECTED',last_synced_at=NOW(),last_error=NULL,updated_at=NOW() WHERE id=#{id}</update>
+  <insert id="insertJob" useGeneratedKeys="true" keyProperty="id">INSERT INTO platform_sync_job(connection_id,triggered_by,status) VALUES(#{connectionId},#{triggeredBy},'RUNNING')</insert>
+  <update id="finishJob">UPDATE platform_sync_job SET status=#{status},synced_count=#{syncedCount},finished_at=NOW(),error_message=#{errorMessage} WHERE id=#{id}</update>
+  <insert id="upsertContent">INSERT INTO platform_content(connection_id,external_id,title,description,cover_url,permalink,media_type,published_at,view_count,like_count,comment_count,last_synced_at) VALUES(#{connectionId},#{externalId},#{title},#{description},#{coverUrl},#{permalink},#{mediaType},#{publishedAt},#{viewCount},#{likeCount},#{commentCount},NOW()) ON DUPLICATE KEY UPDATE title=VALUES(title),description=VALUES(description),cover_url=VALUES(cover_url),permalink=VALUES(permalink),media_type=VALUES(media_type),published_at=VALUES(published_at),view_count=VALUES(view_count),like_count=VALUES(like_count),comment_count=VALUES(comment_count),last_synced_at=NOW(),updated_at=NOW()</insert>
+  <sql id="ContentFrom">FROM platform_content c JOIN platform_connection pc ON pc.id=c.connection_id JOIN platform_account a ON a.id=pc.platform_account_id JOIN platform p ON p.id=a.platform_id WHERE 1=1
+    <if test="creatorId != null">AND a.creator_id=#{creatorId}</if>
+    <if test="connectionId != null">AND c.connection_id=#{connectionId}</if>
+    <if test="platformCode != null">AND p.code=#{platformCode}</if>
+    <if test="q != null">AND (c.title LIKE CONCAT('%',#{q},'%') OR c.description LIKE CONCAT('%',#{q},'%'))</if>
+  </sql>
+  <select id="content" resultType="map">SELECT c.id,c.connection_id AS connectionId,p.code AS platformCode,p.name AS platformName,a.name AS accountName,c.title,c.description,c.cover_url AS coverUrl,c.permalink,c.media_type AS mediaType,c.published_at AS publishedAt,c.view_count AS viewCount,c.like_count AS likeCount,c.comment_count AS commentCount,c.last_synced_at AS lastSyncedAt <include refid="ContentFrom"/> ORDER BY c.published_at DESC,c.id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="countContent" resultType="long">SELECT COUNT(*) <include refid="ContentFrom"/></select>
+</mapper>

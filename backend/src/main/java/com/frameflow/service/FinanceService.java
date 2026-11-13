@@ -3,6 +3,10 @@ package com.frameflow.service;
 import static com.frameflow.common.Values.*;
 
 import com.frameflow.common.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.frameflow.dto.Requests;
 import com.frameflow.mapper.StudioMapper;
 import java.math.BigDecimal;
@@ -10,17 +14,20 @@ import java.time.LocalDate;
 import java.util.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 @Service
 public class FinanceService {
   private final StudioMapper db;
   private final StudioService studio;
   private final AuthService auth;
+  private final ObjectMapper json;
 
-  public FinanceService(StudioMapper db, StudioService studio, AuthService auth) {
+  public FinanceService(StudioMapper db, StudioService studio, AuthService auth, ObjectMapper json) {
     this.db = db;
     this.studio = studio;
     this.auth = auth;
+    this.json = json;
   }
 
   @Transactional
@@ -158,7 +165,7 @@ public class FinanceService {
     auth.audit("ACTIVATE", "CONTRACT", contractId, "激活合同并固定分成比例");
   }
 
-  @Transactional
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   public long generate(Requests.Settlement request) {
     Actor.current().require("ADMIN", "FINANCE");
     if (request.periodEnd().isBefore(request.periodStart()))
@@ -170,6 +177,83 @@ public class FinanceService {
     return id;
   }
 
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public void editSettlement(long settlementId, Requests.EditSettlement request) {
+    Actor.current().require("ADMIN", "FINANCE");
+    if (request.periodEnd().isBefore(request.periodStart()))
+      throw BusinessException.bad("结算结束日期应不早于开始日期");
+    var current = lockDraft(settlementId, request.contractId());
+    revise(settlementId, current, "EDIT", request.reason());
+    calculate(settlementId, request.contractId(), request.periodStart(), request.periodEnd());
+    auth.audit("EDIT_SETTLEMENT", "SETTLEMENT", settlementId, request.reason().trim());
+  }
+
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public void recalculate(long settlementId, String reason) {
+    Actor.current().require("ADMIN", "FINANCE");
+    var current = lockDraft(settlementId, null);
+    revise(settlementId, current, "RECALCULATE", reason);
+    calculate(settlementId, id(current.get("contractId")),
+        LocalDate.parse(current.get("periodStart").toString()), LocalDate.parse(current.get("periodEnd").toString()));
+    auth.audit("RECALCULATE", "SETTLEMENT", settlementId, reason.trim());
+  }
+
+  @Transactional(isolation = Isolation.READ_COMMITTED)
+  public void cancel(long settlementId, String reason) {
+    Actor.current().require("ADMIN", "FINANCE");
+    var current = lockDraft(settlementId, null);
+    revise(settlementId, current, "CANCEL", reason);
+    db.releaseSettlementRevenues(settlementId);
+    db.releaseSettlementCosts(settlementId);
+    db.cancelSettlement(settlementId, Actor.current().id(), reason.trim());
+    auth.audit("CANCEL_SETTLEMENT", "SETTLEMENT", settlementId, reason.trim());
+  }
+
+  // 合同按编号升序先锁，再锁结算；同合同生成、重算和撤销顺序执行。
+  private Map<String, Object> lockDraft(long settlementId, Long targetContractId) {
+    var previous = required(db.settlement(settlementId), "结算单");
+    long originalContractId = id(previous.get("contractId"));
+    var contracts = new TreeSet<Long>(); contracts.add(originalContractId);
+    if (targetContractId != null) contracts.add(targetContractId);
+    for (long contractId : contracts) required(db.lockContract(contractId), "合同");
+    var locked = required(db.lockSettlement(settlementId), "结算单");
+    if (id(locked.get("contractId")) != originalContractId)
+      throw BusinessException.conflict("结算合同已被其他操作修改，请刷新后重试");
+    status(locked, "DRAFT");
+    return required(db.settlement(settlementId), "结算单");
+  }
+
+  private void calculate(long settlementId, long contractId, LocalDate start, LocalDate end) {
+    db.calculateSettlement(Map.of("id", settlementId, "contractId", contractId,
+        "periodStart", start, "periodEnd", end, "actorId", Actor.current().id()));
+  }
+
+  private void revise(long settlementId, Map<String, Object> current, String action, String reason) {
+    var snapshot = new LinkedHashMap<>(current);
+    snapshot.put("lines", db.settlementLines(settlementId));
+    snapshot.put("revenues", db.settlementRevenues(settlementId));
+    snapshot.put("costs", db.settlementCosts(settlementId));
+    try {
+      db.insertSettlementRevision(Map.of("settlementId", settlementId, "action", action,
+          "reason", reason.trim(), "actorId", Actor.current().id(), "snapshotJson", json.writeValueAsString(snapshot)));
+    } catch (JsonProcessingException ex) { throw new IllegalStateException("结算历史快照保存失败", ex); }
+  }
+
+  private List<Map<String, Object>> revisions(long settlementId, Long scope) {
+    var revisions = db.settlementRevisions(settlementId);
+    for (var revision : revisions) {
+      try {
+        Map<String, Object> snapshot = json.readerFor(new TypeReference<Map<String, Object>>() {})
+            .with(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readValue(revision.remove("snapshotJson").toString());
+        var lines = (List<Map<String, Object>>) snapshot.get("lines");
+        snapshot.put("lines", lines.stream().filter(line -> scope == null || id(line.get("creatorId")) == scope).toList());
+        revision.put("snapshot", snapshot);
+      } catch (JsonProcessingException ex) { throw new IllegalStateException("结算历史快照读取失败", ex); }
+    }
+    return revisions;
+  }
+
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   public Map<String, Object> settlement(long settlementId) {
     studio.financeRead();
     var row = required(db.settlement(settlementId), "结算单");
@@ -180,8 +264,17 @@ public class FinanceService {
     row.put(
         "lines",
         lines.stream().filter(x -> scope == null || id(x.get("creatorId")) == scope).toList());
-    row.put("revenues", db.settlementRevenues(settlementId));
-    row.put("costs", db.settlementCosts(settlementId));
+    var revisions = revisions(settlementId, scope);
+    row.put("revisions", revisions);
+    if ("CANCELLED".equals(row.get("status"))) {
+      var cancelled = revisions.stream().filter(revision -> "CANCEL".equals(revision.get("action"))).findFirst().orElseThrow();
+      var snapshot = (Map<String, Object>) cancelled.get("snapshot");
+      row.put("revenues", snapshot.get("revenues"));
+      row.put("costs", snapshot.get("costs"));
+    } else {
+      row.put("revenues", db.settlementRevenues(settlementId));
+      row.put("costs", db.settlementCosts(settlementId));
+    }
     row.put("history", db.settlementHistory(settlementId));
     var q = studio.financeAllQuery();
     var ids = lines.stream().map(x -> id(x.get("creatorId"))).toList();

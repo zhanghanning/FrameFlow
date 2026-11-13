@@ -20,6 +20,7 @@ import {
 import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import LoadError from "../components/LoadError.vue";
+import FinanceGuide from "../components/FinanceGuide.vue";
 const props = defineProps({ resource: String }),
   config = computed(() => resources[props.resource]);
 const query = reactive({
@@ -224,7 +225,7 @@ onMounted(async () => {
     ><el-button v-if="canCreate" type="primary" :icon="Plus" @click="open()"
       >新增{{ config.singular }}</el-button
     ></PageHeader
-  ><LoadError :message="error" @retry="load" />
+  ><FinanceGuide v-if="resource === 'costs'" stage="costs" /><LoadError :message="error" @retry="load" />
   <div class="panel table-panel">
     <div class="toolbar">
       <el-input

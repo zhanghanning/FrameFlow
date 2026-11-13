@@ -1,0 +1,34 @@
+{
+  "api": "http://localhost:8082/api",
+  "count": 8,
+  "passed": [
+    "提交后冻结；审核退回草稿后允许调整",
+    "重算同一结算单，纳入新增收支并保存旧快照",
+    "修改期间及合同，旧来源可重新分配，单号保持",
+    "空期间修改整体回滚，原快照和来源占用完整",
+    "撤销保留依据与个人历史，释放来源且不产生应付",
+    "重新结算审核后形成准确应付，已批准快照与付款保持一致",
+    "同合同并发生成只分配一次，分账尾差守恒",
+    "跨合同有效期退款可重算并抵扣余额，原批准单稳定"
+  ],
+  "fixture": {
+    "projectId": 27,
+    "draftId": 31,
+    "cancelledId": 27,
+    "approvedId": 30,
+    "creatorId": 24
+  },
+  "browserChecks": [
+    "required reason validation",
+    "recalculate same number",
+    "read historical snapshot",
+    "edit period and recalculate",
+    "cancel and view archive",
+    "producer finance navigation only costs"
+  ],
+  "uiFixtureAfterBrowser": {
+    "settlementId": 31,
+    "status": "CANCELLED",
+    "periodStart": "2026-11-02"
+  }
+}

@@ -11,7 +11,7 @@
 | 收入、退款与对账 | Revenues.vue | FinanceController | FinanceService | StudioMapper.xml |
 | CSV 预览与导入 | Revenues.vue | FinanceController | RevenueImportService | StudioMapper.xml |
 | 分账协议 | Contracts.vue | FinanceController | FinanceService | StudioMapper.xml |
-| 生成与审核结算 | Settlements.vue | FinanceController | FinanceService | generateSettlement / objects.sql |
+| 生成、修改、重算、撤销与审核结算 | Settlements.vue | FinanceController | FinanceService | StudioMapper / objects.sql / settlement_revision |
 | 余额与付款 | Balances.vue | FinanceController | FinanceService.payment | v_creator_balance / StudioMapper.xml |
 | 岗位申请与审核 | RoleApplications.vue | AuthController | AuthService | AuthMapper.xml / role_application |
 | 团队账号与角色 | Resource.vue | AuthController | AuthService | AuthMapper.xml |
@@ -27,6 +27,8 @@ Vue 页面位于 frontend/src/views；Java 位于 backend/src/main/java/com/fram
 5. 过程锁住协议，将尚未分配的确认收入和批准成本写入来源表，保存参与方比例与金额；工作室承接分位尾差。
 6. Vue 请求结算详情，显示来源、成本、分成与历史。提交和批准由不同人完成，数据库触发器记录状态变化。
 7. v_creator_balance 汇总批准金额，付款登记校验余额并记录实际支付。退款保留原收入和协议的关联。
+
+草稿修改入口为 `PUT /api/settlements/{id}`，重算与撤销为 `POST /api/settlements/{id}/recalculate`、`/cancel`，均需操作理由。修改在同一事务中保存旧快照、释放原分配并通过 `sp_calculate_settlement` 计算；失败整体回滚。撤销保存快照、释放来源并改为 CANCELLED，查阅时使用留档依据。
 
 重点解释：为什么使用事务和行锁、为什么来源分配 UNIQUE、为什么保存快照、为什么审核和付款分开。
 

@@ -88,7 +88,7 @@ CREATE TABLE platform_account (
   platform_id BIGINT UNSIGNED NOT NULL,
   creator_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(100) NOT NULL,
-  external_id VARCHAR(128) NOT NULL,
+  external_id VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -336,6 +336,8 @@ CREATE TABLE settlement (
   approved_by BIGINT UNSIGNED, approved_at DATETIME,
   last_actor_id BIGINT UNSIGNED NOT NULL,
   reject_reason VARCHAR(1000),
+  cancel_reason VARCHAR(1000),
+  cancelled_by BIGINT UNSIGNED, cancelled_at DATETIME,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (contract_id) REFERENCES contract(id),
@@ -344,13 +346,29 @@ CREATE TABLE settlement (
   FOREIGN KEY (submitted_by) REFERENCES app_user(id),
   FOREIGN KEY (approved_by) REFERENCES app_user(id),
   FOREIGN KEY (last_actor_id) REFERENCES app_user(id),
+  FOREIGN KEY (cancelled_by) REFERENCES app_user(id),
   CONSTRAINT ck_settlement_period CHECK (period_end >= period_start),
   CONSTRAINT ck_settlement_rate CHECK (studio_rate BETWEEN 0 AND 100),
   CONSTRAINT ck_settlement_cost CHECK (total_cost >= 0),
-  CONSTRAINT ck_settlement_status CHECK (status IN ('DRAFT','SUBMITTED','APPROVED')),
-  CONSTRAINT ck_settlement_submit CHECK (status='DRAFT' OR (submitted_by IS NOT NULL AND submitted_at IS NOT NULL)),
+  CONSTRAINT ck_settlement_status CHECK (status IN ('DRAFT','SUBMITTED','APPROVED','CANCELLED')),
+  CONSTRAINT ck_settlement_submit CHECK (status IN ('DRAFT','CANCELLED') OR (submitted_by IS NOT NULL AND submitted_at IS NOT NULL)),
   CONSTRAINT ck_settlement_approval CHECK (status<>'APPROVED' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL AND approved_by<>submitted_by)),
+  CONSTRAINT ck_settlement_cancel CHECK (status<>'CANCELLED' OR (cancel_reason IS NOT NULL AND cancelled_by IS NOT NULL AND cancelled_at IS NOT NULL)),
   INDEX ix_settlement_period (period_end,status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE settlement_revision (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  settlement_id BIGINT UNSIGNED NOT NULL,
+  action VARCHAR(32) NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  actor_id BIGINT UNSIGNED NOT NULL,
+  snapshot_json JSON NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (settlement_id) REFERENCES settlement(id),
+  FOREIGN KEY (actor_id) REFERENCES app_user(id),
+  CONSTRAINT ck_settlement_revision_action CHECK (action IN ('EDIT','RECALCULATE','CANCEL')),
+  INDEX ix_settlement_revision (settlement_id,id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE settlement_revenue (
@@ -437,4 +455,75 @@ CREATE TABLE perf_revenue (
   source_ref VARCHAR(128) NOT NULL,
   CONSTRAINT ck_perf_status CHECK (status IN ('DRAFT','CONFIRMED')),
   CONSTRAINT ck_perf_amount CHECK (gross_amount > 0 AND fee_amount BETWEEN 0 AND gross_amount)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 平台授权与独立平台内容库。
+CREATE TABLE platform_connection (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  platform_account_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  authorized_by BIGINT UNSIGNED NOT NULL,
+  access_token_encrypted TEXT,
+  refresh_token_encrypted TEXT,
+  token_expires_at DATETIME,
+  refresh_expires_at DATETIME,
+  granted_scopes TEXT,
+  status VARCHAR(16) NOT NULL DEFAULT 'CONNECTED',
+  last_synced_at DATETIME,
+  last_error VARCHAR(1000),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (platform_account_id) REFERENCES platform_account(id),
+  FOREIGN KEY (authorized_by) REFERENCES app_user(id),
+  CONSTRAINT ck_platform_connection_status CHECK (status IN ('CONNECTED','EXPIRED','DISCONNECTED','ERROR'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE oauth_attempt (
+  state VARCHAR(96) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+  platform_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  creator_id BIGINT UNSIGNED NOT NULL,
+  code_verifier VARCHAR(128),
+  expires_at DATETIME NOT NULL,
+  consumed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (platform_id) REFERENCES platform(id),
+  FOREIGN KEY (user_id) REFERENCES app_user(id),
+  FOREIGN KEY (creator_id) REFERENCES creator(id),
+  INDEX ix_oauth_attempt_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE platform_content (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  connection_id BIGINT UNSIGNED NOT NULL,
+  external_id VARCHAR(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  cover_url VARCHAR(2000),
+  permalink VARCHAR(2000),
+  media_type VARCHAR(32) NOT NULL,
+  published_at DATETIME,
+  view_count BIGINT UNSIGNED,
+  like_count BIGINT UNSIGNED,
+  comment_count BIGINT UNSIGNED,
+  last_synced_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (connection_id) REFERENCES platform_connection(id),
+  UNIQUE KEY uk_platform_content_remote (connection_id,external_id),
+  INDEX ix_platform_content_published (connection_id,published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE platform_sync_job (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  connection_id BIGINT UNSIGNED NOT NULL,
+  triggered_by BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  synced_count INT UNSIGNED NOT NULL DEFAULT 0,
+  started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at DATETIME,
+  error_message VARCHAR(1000),
+  FOREIGN KEY (connection_id) REFERENCES platform_connection(id),
+  FOREIGN KEY (triggered_by) REFERENCES app_user(id),
+  CONSTRAINT ck_platform_sync_job_status CHECK (status IN ('RUNNING','SUCCEEDED','FAILED')),
+  INDEX ix_platform_sync_job_started (connection_id,started_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

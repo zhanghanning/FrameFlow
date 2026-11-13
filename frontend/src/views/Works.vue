@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Plus, Search } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import {
@@ -11,14 +12,26 @@ import {
   fail,
   listItems,
 } from "../lib/api";
+import { platformIntegrationsEnabled } from "../lib/features";
 import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import LoadError from "../components/LoadError.vue";
-const tab = ref("works"),
+import PlatformContent from "./PlatformContent.vue";
+const route = useRoute(),
+  router = useRouter();
+const tab = ref(
+    platformIntegrationsEnabled &&
+    route.query.tab === "platform" &&
+    hasRole("ADMIN", "CREATOR")
+      ? "platform"
+      : "works",
+  ),
   query = reactive({ q: "", status: "", projectId: "", page: 1, pageSize: 10 }),
   rows = ref([]),
   total = ref(0),
   options = ref({}),
+  optionsLoading = ref(true),
+  optionsError = ref(""),
   loading = ref(false),
   error = ref(""),
   dialog = ref(false),
@@ -46,6 +59,17 @@ const canWriteProject = (project) =>
 const writableProjects = computed(() =>
   (options.value.projects || []).filter(canWriteProject),
 );
+const createWorkMessage = computed(() => {
+  if (optionsLoading.value) return "正在加载可创作的项目…";
+  if (optionsError.value) return "项目列表加载失败，请重新加载后创建作品。";
+  if (writableProjects.value.length) return "";
+  if (hasRole("ADMIN")) return "创建作品前，请先创建一个项目。";
+  if (hasRole("PRODUCER"))
+    return hasRole("CREATOR")
+      ? "你还没有负责或参与的项目。请先创建项目，或请管理员、项目统筹将你加入项目。"
+      : "你还没有负责的项目，请先创建项目。";
+  return "你尚未加入项目，请联系管理员或项目统筹将你加入项目后再创建作品。";
+});
 const canWriteWork = (work) =>
   canWriteProject(
     options.value.projects?.find((project) => project.id === work.projectId),
@@ -88,7 +112,22 @@ const publishAccounts = computed(() => {
       (!project || project.creatorIds?.includes(account.creatorId)),
   );
 });
+async function loadOptions() {
+  optionsLoading.value = true;
+  optionsError.value = "";
+  try {
+    options.value = await api.get("/options");
+  } catch (e) {
+    optionsError.value = e.message;
+  } finally {
+    optionsLoading.value = false;
+  }
+}
+async function refreshProjectAccess() {
+  await Promise.all([loadOptions(), load()]);
+}
 async function load() {
+  if (tab.value === "platform") return;
   loading.value = true;
   error.value = "";
   try {
@@ -137,7 +176,7 @@ async function save() {
     ElMessage.success("作品已保存");
     dialog.value = false;
     load();
-    options.value = await api.get("/options");
+    await loadOptions();
   } catch (e) {
     fail(e);
   } finally {
@@ -179,12 +218,13 @@ async function show(row) {
   }
 }
 onMounted(async () => {
-  await load();
-  try {
-    options.value = await api.get("/options");
-  } catch (e) {
-    fail(e);
+  if (!platformIntegrationsEnabled && route.query.tab === "platform") {
+    const remaining = { ...route.query };
+    delete remaining.tab;
+    delete remaining.connectionId;
+    await router.replace({ query: remaining });
   }
+  await refreshProjectAccess();
 });
 </script>
 <template>
@@ -193,19 +233,50 @@ onMounted(async () => {
     subtitle="连接素材与成片，记录每一次正式发布。"
     eyebrow="CONTENT & PUBLICATION"
     ><el-button
-      v-if="hasRole('ADMIN', 'PRODUCER', 'CREATOR')"
-      :disabled="!publishableWorks.length"
+      v-if="tab !== 'platform' && hasRole('ADMIN', 'PRODUCER', 'CREATOR')"
+      :disabled="optionsLoading || !!optionsError || !publishableWorks.length"
       @click="openPublish()"
       >登记发布</el-button
     ><el-button
-      v-if="hasRole('ADMIN', 'PRODUCER', 'CREATOR')"
+      v-if="tab !== 'platform' && hasRole('ADMIN', 'PRODUCER', 'CREATOR')"
       type="primary"
       :icon="Plus"
-      :disabled="!writableProjects.length"
+      :disabled="!!createWorkMessage"
+      :aria-describedby="createWorkMessage ? 'work-creation-guidance' : undefined"
       @click="open()"
       >创建作品</el-button
-    ></PageHeader
-  ><LoadError :message="error" @retry="load" /><el-tabs
+    ></PageHeader>
+  <div
+    v-if="tab !== 'platform' && hasRole('ADMIN', 'PRODUCER', 'CREATOR') && createWorkMessage"
+    id="work-creation-guidance"
+    class="work-creation-guidance"
+    :class="{ 'is-error': optionsError }"
+    role="status"
+    data-testid="work-creation-guidance"
+  >
+    <div>
+      <p>{{ createWorkMessage }}</p>
+      <small v-if="optionsError">{{ optionsError }}</small>
+    </div>
+    <div class="work-creation-guidance-actions">
+      <router-link
+        v-if="!optionsLoading && !optionsError && hasRole('ADMIN', 'PRODUCER')"
+        to="/projects"
+        >前往项目</router-link
+      >
+      <el-button
+        size="small"
+        :loading="optionsLoading"
+        @click="refreshProjectAccess"
+        >{{ optionsError ? "重新加载项目" : "刷新项目权限" }}</el-button
+      >
+    </div>
+  </div>
+  <LoadError
+    v-if="tab !== 'platform'"
+    :message="error"
+    @retry="load"
+  /><el-tabs
     v-model="tab"
     class="section-tabs"
     @tab-change="
@@ -215,9 +286,13 @@ onMounted(async () => {
     "
     ><el-tab-pane label="作品库" name="works" /><el-tab-pane
       label="发布记录"
-      name="publications"
+      name="publications" /><el-tab-pane
+      v-if="platformIntegrationsEnabled && hasRole('ADMIN', 'CREATOR')"
+      label="平台作品"
+      name="platform"
   /></el-tabs>
-  <div class="panel table-panel">
+  <PlatformContent v-if="platformIntegrationsEnabled && tab === 'platform'" />
+  <div v-else class="panel table-panel">
     <div class="toolbar">
       <el-input
         v-model="query.q"
@@ -334,7 +409,7 @@ onMounted(async () => {
             :href="row.url"
             target="_blank"
             rel="noopener noreferrer"
-            style="color: #628052; font-size: 11px"
+            style="color: var(--accent); font-size: 12px"
             >查看平台作品 ↗</a
           ><span v-else class="muted small">未填写平台链接</span></template
         ></el-table-column
@@ -503,3 +578,26 @@ onMounted(async () => {
     </div></el-drawer
   >
 </template>
+
+<style scoped>
+.work-creation-guidance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: -7px 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.work-creation-guidance p { margin: 0; }
+.work-creation-guidance small { display: block; margin-top: 3px; }
+.work-creation-guidance.is-error { border-color: #eed5ce; background: #fff5f1; color: #955847; }
+.work-creation-guidance-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.work-creation-guidance-actions a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+</style>

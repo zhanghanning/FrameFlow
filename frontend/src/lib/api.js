@@ -31,7 +31,16 @@ api.interceptors.response.use(
     return response.data.data;
   },
   async (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error);
     const status = error.response?.status;
+    let errorData = error.response?.data;
+    if (errorData instanceof Blob) {
+      try {
+        errorData = JSON.parse(await errorData.text());
+      } catch {
+        errorData = null;
+      }
+    }
     if (status === 401) {
       clearSession();
       if (!["/login", "/register"].includes(location.pathname))
@@ -46,7 +55,7 @@ api.interceptors.response.use(
       }
     }
     const failure = new Error(
-      error.response?.data?.msg ||
+      errorData?.msg ||
         (error.code === "ECONNABORTED"
           ? "请求耗时较长，请稍后重试"
           : "服务连接失败，请检查后端是否启动"),
@@ -153,6 +162,12 @@ export const labels = {
   REGISTER: "用户注册",
   PENDING: "待审核",
   REJECTED: "已拒绝",
+  CANCELLED: "已撤销",
+  EDIT: "修改重算",
+  EDIT_SETTLEMENT: "修改结算",
+  RECALCULATE: "重新计算",
+  CANCEL: "撤销结算",
+  CANCEL_SETTLEMENT: "撤销结算",
   ROLE_APPLICATION: "身份申请",
   APPLY_ROLE: "申请身份",
   APPROVE_ROLE: "批准身份申请",

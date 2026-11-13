@@ -137,7 +137,9 @@ public class AssetService {
     var codes = new LinkedHashSet<String>();
     for (String code : allowed.split(",")) {
       code = code.trim().toUpperCase();
-      oneOf(code, "ALL", "DOUYIN", "BILIBILI", "XIAOHONGSHU");
+      String selected = code;
+      if (!"ALL".equals(code) && db.platforms().stream().noneMatch(platform -> selected.equals(platform.get("code"))))
+        throw BusinessException.bad("不支持的授权平台：" + code);
       codes.add(code);
     }
     row.put("allowedPlatforms", String.join(",", codes));

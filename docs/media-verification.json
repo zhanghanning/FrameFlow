@@ -1,0 +1,21 @@
+{
+  "api": "http://localhost:8082/api",
+  "database": "frameflow_test",
+  "run": "1794575409445255290",
+  "count": 6,
+  "passed": [
+    "真实视频生成JPEG封面和3秒静音H264预览，原文件内容保留",
+    "封面与预览沿用素材授权，已有缓存撤权后同会话立即受限",
+    "不足3秒的视频循环补足，竖屏保持纵横比",
+    "静态图片保留图片预览，不伪装为动态视频",
+    "无法解码视频返回明确错误，失败上传事务不留下素材记录",
+    "并发持有视频生成锁时，已有素材缓存读取在锁释放前完成"
+  ],
+  "previewDuration": 3.0,
+  "previewBytes": 76324,
+  "sourceBytes": 3345446,
+  "cacheConcurrency": {
+    "method": "当前后端AssetMediaService生成锁由独立线程持有，CountDownLatch控制顺序",
+    "result": "已有缓存读取在生成锁释放前完成"
+  }
+}

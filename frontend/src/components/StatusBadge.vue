@@ -7,3 +7,8 @@ defineProps({ value: String });
     ><i></i>{{ label(value) }}</span
   >
 </template>
+
+<style scoped>
+.status-badge.cancelled { color: var(--muted); background: var(--paper); border: 1px solid var(--line); }
+.status-badge.cancelled i { background: var(--muted); }
+</style>

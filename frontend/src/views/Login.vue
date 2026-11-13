@@ -35,25 +35,24 @@ async function login() {
   <div class="login-page">
     <section class="login-art">
       <div class="brand">
-        <span class="brand-symbol">F<span>↗</span></span
-        ><span><strong>帧序</strong><small>FRAMEFLOW</small></span>
+        <span class="frame-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></span>
+        <span><strong>帧序</strong><small>FRAMEFLOW STUDIO</small></span>
       </div>
       <div class="login-art-copy">
-        <small>MADE FOR CREATORS.</small>
-        <h1>让灵感自由生长，<br />让价值清晰可见。</h1>
-        <p>连接素材、创作与收益。<br />属于创作者的工作室管理空间。</p>
+        <small>THE CREATOR'S WORKING ARCHIVE</small>
+        <h1>创作有序。<br /><em>每一帧，</em><br />都有来处。</h1>
+        <p>从素材到成片，从协作到分账。<br />把工作室的日常，收进一本清楚的制作档案。</p>
       </div>
-      <div class="login-ring"></div>
-      <div class="login-star">✦</div>
+      <div class="auth-slate" aria-hidden="true"><span>素材 / 制作 / 分账</span><div><b>FRAME</b><b>FLOW</b></div><small>CREATIVE STUDIO · WORKING ARCHIVE</small></div>
       <div class="login-art-footer">
-        <span>CREATION, IN FLOW.</span><span>帧序创意工作室</span>
+        <span>帧序工作室</span><span>EST. FOR CREATORS</span>
       </div>
     </section>
     <section class="login-pane">
       <div class="login-form">
-        <div class="eyebrow">YOUR CREATIVE WORKSPACE</div>
-        <h2>欢迎回到帧序</h2>
-        <p>登录工作室，开始今天的创作与协作。</p>
+        <div class="eyebrow">01 / ENTER THE STUDIO</div>
+        <h2>回到工作室</h2>
+        <p>登录账号，接续你的素材、项目与收益记录。</p>
         <div v-if="registeredUsername" class="registration-success">
           注册成功，你的创作者空间已准备好。登录后即可上传素材、完善资料。
         </div>
@@ -88,13 +87,15 @@ async function login() {
           /></el-form-item>
           <div v-if="error" class="error-panel">{{ error }}</div>
           <el-button type="primary" :loading="busy" native-type="submit"
-            >进入工作空间 <span style="margin-left: auto">↗</span></el-button
+            >进入工作室 <span class="auth-submit-arrow">→</span></el-button
           ></el-form
         >
         <p class="auth-switch">
           还没有账号？<router-link to="/register">创建创作者账号</router-link>
         </p>
-        <div class="demo-title">演示账号 · 体验不同工作角色</div>
+        <details class="demo-access">
+        <summary>使用演示账号 <span>＋</span></summary>
+        <p class="demo-title">选择角色，查看对应工作空间</p>
         <div class="demo-roles">
           <button
             v-for="demo in demos"
@@ -112,9 +113,8 @@ async function login() {
         <p class="demo-hint">
           演示密码：FrameFlow2026! · 各角色按实际权限访问业务数据
         </p>
-        <div class="login-bottom">
-          每一份素材，都值得被妥善管理。<br />每一笔收益，都应该清晰透明。
-        </div>
+        </details>
+        <div class="login-bottom">帧序 FRAMEFLOW / 创作者工作室管理</div>
       </div>
     </section>
   </div>

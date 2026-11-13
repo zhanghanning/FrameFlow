@@ -22,7 +22,7 @@ INSERT INTO app_role(id,code,name) VALUES
 (1,'ADMIN','管理员'),(2,'PRODUCER','项目统筹'),(3,'FINANCE','财务'),(4,'REVIEWER','审核'),(5,'CREATOR','创作者');
 INSERT INTO user_role(user_id,role_id) VALUES(1,1),(2,2),(3,3),(4,4),(5,5);
 
-INSERT INTO platform(id,code,name) VALUES(1,'DOUYIN','抖音'),(2,'BILIBILI','哔哩哔哩'),(3,'XIAOHONGSHU','小红书');
+INSERT INTO platform(id,code,name) VALUES(1,'DOUYIN','抖音'),(2,'BILIBILI','哔哩哔哩'),(3,'XIAOHONGSHU','小红书'),(4,'KUAISHOU','快手'),(5,'YOUTUBE','YouTube'),(6,'INSTAGRAM','Instagram');
 INSERT INTO platform_account(id,platform_id,creator_id,name,external_id) VALUES
 (1,1,1,'知夏的城市手记','demo-dy-zhixia'),(2,3,1,'知夏的日常切片','demo-xhs-zhixia'),
 (3,2,2,'陈屿在路上','demo-bili-chenyu'),(4,1,3,'予安观察室','demo-dy-yuan'),

@@ -10,6 +10,10 @@ GRANT SELECT,INSERT,UPDATE ON frameflow.role_application TO 'frameflow_app_role'
 GRANT SELECT,INSERT,UPDATE ON frameflow.creator TO 'frameflow_app_role';
 GRANT SELECT ON frameflow.platform TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.platform_account TO 'frameflow_app_role';
+GRANT SELECT,INSERT,UPDATE ON frameflow.platform_connection TO 'frameflow_app_role';
+GRANT SELECT,INSERT,UPDATE ON frameflow.oauth_attempt TO 'frameflow_app_role';
+GRANT SELECT,INSERT,UPDATE ON frameflow.platform_content TO 'frameflow_app_role';
+GRANT SELECT,INSERT,UPDATE ON frameflow.platform_sync_job TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.project TO 'frameflow_app_role';
 GRANT SELECT,INSERT,DELETE ON frameflow.project_member TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.asset TO 'frameflow_app_role';
@@ -26,16 +30,18 @@ GRANT SELECT,INSERT,UPDATE ON frameflow.import_batch TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.revenue TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.project_cost TO 'frameflow_app_role';
 GRANT SELECT,INSERT,UPDATE ON frameflow.settlement TO 'frameflow_app_role';
-GRANT SELECT,INSERT ON frameflow.settlement_revenue TO 'frameflow_app_role';
-GRANT SELECT,INSERT ON frameflow.settlement_cost TO 'frameflow_app_role';
-GRANT SELECT,INSERT ON frameflow.settlement_line TO 'frameflow_app_role';
+GRANT SELECT,INSERT,DELETE ON frameflow.settlement_revenue TO 'frameflow_app_role';
+GRANT SELECT,INSERT,DELETE ON frameflow.settlement_cost TO 'frameflow_app_role';
+GRANT SELECT,INSERT,DELETE ON frameflow.settlement_line TO 'frameflow_app_role';
 GRANT SELECT,INSERT ON frameflow.payment TO 'frameflow_app_role';
+GRANT SELECT,INSERT ON frameflow.settlement_revision TO 'frameflow_app_role';
 GRANT SELECT ON frameflow.settlement_history TO 'frameflow_app_role';
 GRANT SELECT,INSERT ON frameflow.audit_log TO 'frameflow_app_role';
 GRANT SELECT ON frameflow.v_project_finance TO 'frameflow_app_role';
 GRANT SELECT ON frameflow.v_creator_balance TO 'frameflow_app_role';
 GRANT SELECT ON frameflow.v_asset_license_expiry TO 'frameflow_app_role';
 GRANT EXECUTE ON PROCEDURE frameflow.sp_generate_settlement TO 'frameflow_app_role';
+GRANT EXECUTE ON PROCEDURE frameflow.sp_calculate_settlement TO 'frameflow_app_role';
 
 -- 分析角色只读：视图使用定义者权限，分析账号可以看汇总，无法读取密码或会话。
 GRANT SELECT ON frameflow.v_project_finance TO 'frameflow_analyst_role';

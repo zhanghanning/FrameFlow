@@ -19,6 +19,12 @@ public class Errors {
     return result(ex.status(), ex.getMessage());
   }
 
+  @ExceptionHandler({org.springframework.web.servlet.resource.NoResourceFoundException.class,
+      org.springframework.web.servlet.NoHandlerFoundException.class})
+  public ResponseEntity<Api<Void>> notFound(Exception ex) {
+    return result(404, "接口不存在或尚未启用");
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<Api<Void>> validation(MethodArgumentNotValidException ex) {
     return result(400, ex.getBindingResult().getFieldErrors().getFirst().getDefaultMessage());

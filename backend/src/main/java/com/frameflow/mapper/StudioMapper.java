@@ -69,6 +69,8 @@ public interface StudioMapper {
 
   long accountPublicationCount(long id);
 
+  long accountConnectionCount(long id);
+
   Map<String, Object> creator(long id);
 
   Map<String, Object> account(long id);
@@ -183,6 +185,18 @@ public interface StudioMapper {
   void activateContract(long id);
 
   void generateSettlement(Map<String, Object> data);
+
+  void calculateSettlement(Map<String, Object> data);
+
+  void insertSettlementRevision(Map<String, Object> data);
+
+  List<Map<String, Object>> settlementRevisions(long id);
+
+  void releaseSettlementRevenues(long id);
+
+  void releaseSettlementCosts(long id);
+
+  void cancelSettlement(@Param("id") long id, @Param("actorId") long actorId, @Param("reason") String reason);
 
   void submitSettlement(@Param("id") long id, @Param("actorId") long actorId);
 

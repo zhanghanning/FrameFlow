@@ -6,6 +6,7 @@ import { api, hasRole, date, label, fail, listItems } from "../lib/api";
 import PageHeader from "../components/PageHeader.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import LoadError from "../components/LoadError.vue";
+import FinanceGuide from "../components/FinanceGuide.vue";
 const query = reactive({ q: "", status: "", page: 1, pageSize: 10 }),
   rows = ref([]),
   total = ref(0),
@@ -27,6 +28,14 @@ const rateTotal = computed(
     options.value.projects?.find((x) => x.id === id)?.name || "—",
   creatorName = (id) =>
     options.value.creators?.find((x) => x.id === id)?.name || "—";
+const projectCreators = computed(() => {
+  const members = options.value.projects?.find(item => item.id === form.projectId)?.creatorIds || [];
+  return (options.value.creators || []).filter(item => members.includes(item.id));
+});
+function changeProject() {
+  const members = projectCreators.value.map(item => item.id);
+  form.participants = form.participants.map(item => ({ ...item, creatorId: members.includes(item.creatorId) ? item.creatorId : null }));
+}
 async function load() {
   loading.value = true;
   error.value = "";
@@ -121,7 +130,7 @@ onMounted(async () => {
       @click="open"
       >创建分成合同</el-button
     ></PageHeader
-  ><LoadError :message="error" @retry="load" />
+  ><FinanceGuide stage="contracts" /><LoadError :message="error" @retry="load" />
   <div class="panel table-panel">
     <div class="toolbar">
       <el-input
@@ -220,7 +229,7 @@ onMounted(async () => {
           label="关联项目"
           prop="projectId"
           :rules="[{ required: true, message: '请选择项目' }]"
-          ><el-select v-model="form.projectId" filterable
+          ><el-select v-model="form.projectId" filterable @change="changeProject"
             ><el-option
               v-for="item in options.projects"
               :key="item.id"
@@ -262,6 +271,7 @@ onMounted(async () => {
           >添加创作者</el-button
         >
       </div>
+      <p class="hint">先选择项目，再从该项目的创作者成员中分配比例。</p>
       <div
         v-for="(participant, i) in form.participants"
         :key="i"
@@ -270,9 +280,10 @@ onMounted(async () => {
         <el-select
           v-model="participant.creatorId"
           filterable
-          placeholder="选择创作者"
+          :disabled="!form.projectId"
+          placeholder="选择项目成员"
           ><el-option
-            v-for="creator in options.creators"
+            v-for="creator in projectCreators"
             :key="creator.id"
             :label="creator.name"
             :value="creator.id" /></el-select

@@ -61,25 +61,24 @@ async function register() {
   <div class="login-page registration-page">
     <section class="login-art">
       <router-link to="/login" class="brand"
-        ><span class="brand-symbol">F<span>↗</span></span
-        ><span><strong>帧序</strong><small>FRAMEFLOW</small></span></router-link
+        ><span class="frame-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></span>
+        <span><strong>帧序</strong><small>FRAMEFLOW STUDIO</small></span></router-link
       >
       <div class="login-art-copy">
-        <small>YOUR NEXT CHAPTER.</small>
-        <h1>每一份才华，<br />都有自己的位置。</h1>
-        <p>从一个账号开始，<br />连接你的创作与协作。</p>
+        <small>A PLACE FOR YOUR NEXT FRAME</small>
+        <h1>开一页新档案。<br /><em>写下你的</em><br />创作名字。</h1>
+        <p>收藏素材，参与制作，记录作品。<br />从这里开始你的工作室日常。</p>
       </div>
-      <div class="login-ring"></div>
-      <div class="login-star">✦</div>
+      <div class="auth-slate" aria-hidden="true"><span>素材 / 制作 / 分账</span><div><b>FRAME</b><b>FLOW</b></div><small>CREATIVE STUDIO · WORKING ARCHIVE</small></div>
       <div class="login-art-footer">
-        <span>CREATION, IN FLOW.</span><span>帧序创意工作室</span>
+        <span>帧序工作室</span><span>EST. FOR CREATORS</span>
       </div>
     </section>
     <section class="login-pane">
       <div class="login-form register-form">
-        <div class="eyebrow">JOIN THE STUDIO</div>
-        <h2>创建你的账号</h2>
-        <p>注册即成为创作者，开启你的素材与作品空间。</p>
+        <div class="eyebrow">02 / JOIN THE STUDIO</div>
+        <h2>成为创作者</h2>
+        <p>创建个人账号，整理素材并参与项目协作。</p>
         <el-form
           ref="formRef"
           :model="form"
@@ -127,7 +126,7 @@ async function register() {
             >
           </div>
           <el-button type="primary" :loading="busy" native-type="submit"
-            >创建创作者账号 <span style="margin-left: auto">↗</span></el-button
+            >创建创作者账号 <span class="auth-submit-arrow">→</span></el-button
           >
         </el-form>
         <p class="auth-switch">

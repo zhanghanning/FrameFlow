@@ -94,7 +94,7 @@ export const navigation = [
     icon: "Connection",
     group: "工作室",
     roles: all,
-    resource: "platform-accounts",
+    component: () => import("./views/PlatformAccounts.vue"),
   },
   {
     path: "/users",

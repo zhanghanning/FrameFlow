@@ -109,6 +109,15 @@ public final class Requests {
       @NotNull(message = "请选择结算开始日期") LocalDate periodStart,
       @NotNull(message = "请选择结算结束日期") LocalDate periodEnd) {}
 
+  public record EditSettlement(
+      @NotNull(message = "请选择合同") Long contractId,
+      @NotNull(message = "请选择结算开始日期") LocalDate periodStart,
+      @NotNull(message = "请选择结算结束日期") LocalDate periodEnd,
+      @NotBlank(message = "请填写修改原因") @Size(max = 1000, message = "原因最多1000字") String reason) {}
+
+  public record SettlementReason(
+      @NotBlank(message = "请填写操作原因") @Size(max = 1000, message = "原因最多1000字") String reason) {}
+
   public record Reject(@NotBlank(message = "请输入驳回理由") String reason) {}
 
   public record Payment(

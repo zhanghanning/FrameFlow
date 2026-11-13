@@ -105,6 +105,24 @@ public class FinanceController {
     return Api.ok(Map.of("id", finance.generate(request)));
   }
 
+  @PutMapping("/settlements/{id}")
+  public Api<?> editSettlement(@PathVariable long id, @Valid @RequestBody Requests.EditSettlement request) {
+    finance.editSettlement(id, request);
+    return Api.ok(Map.of("id", id));
+  }
+
+  @PostMapping("/settlements/{id}/recalculate")
+  public Api<?> recalculate(@PathVariable long id, @Valid @RequestBody Requests.SettlementReason request) {
+    finance.recalculate(id, request.reason());
+    return Api.ok(Map.of("id", id));
+  }
+
+  @PostMapping("/settlements/{id}/cancel")
+  public Api<?> cancel(@PathVariable long id, @Valid @RequestBody Requests.SettlementReason request) {
+    finance.cancel(id, request.reason());
+    return Api.ok(Map.of("id", id));
+  }
+
   @PostMapping("/settlements/{id}/submit")
   public Api<?> submit(@PathVariable long id) {
     finance.submit(id);

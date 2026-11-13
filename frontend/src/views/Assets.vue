@@ -24,6 +24,7 @@ import PageHeader from "../components/PageHeader.vue";
 import LoadError from "../components/LoadError.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import AssetThumbnail from "../components/AssetThumbnail.vue";
+import AssetPreview from "../components/AssetPreview.vue";
 const route = useRoute(),
   query = reactive({ q: "", kind: "", status: "", page: 1, pageSize: 12 }),
   rows = ref([]),
@@ -43,7 +44,8 @@ const route = useRoute(),
   platformSelection = ref(["ALL"]),
   sharingDialog = ref(false),
   sharedProjectIds = ref([]),
-  sharing = ref(false);
+  sharing = ref(false),
+  preview = ref();
 const canEditAsset = (asset) =>
   hasRole("ADMIN") ||
   (hasRole("CREATOR") && asset.creatorId === session.user?.creatorId);
@@ -109,6 +111,7 @@ const licenseText = (row) =>
       ? "授权已到期"
       : `授权至 ${date(row.licenseEnd)}`;
 async function load() {
+  preview.value?.closeAll();
   loading.value = true;
   error.value = "";
   try {
@@ -122,6 +125,7 @@ async function load() {
   }
 }
 function open(row = null) {
+  preview.value?.closeHover(true);
   editing.value = row?.id || null;
   Object.assign(
     form,
@@ -196,6 +200,7 @@ async function save() {
   }
 }
 function show(row) {
+  preview.value?.closeHover(true);
   detail.value = row;
   drawer.value = true;
 }
@@ -315,8 +320,29 @@ onMounted(async () => {
     ><span class="result-count">{{ total }} 份创作素材</span>
   </div>
   <div v-loading="loading" class="asset-grid">
-    <article v-for="row in rows" :key="row.id" class="asset-card">
-      <div class="asset-preview" style="cursor: pointer" @click="show(row)">
+    <article
+      v-for="row in rows"
+      :key="row.id"
+      class="asset-card"
+      data-testid="asset-card"
+      :data-asset-id="row.id"
+    >
+      <div
+        class="asset-preview asset-preview-trigger"
+        role="button"
+        tabindex="0"
+        :aria-label="`预览素材：${row.name}`"
+        aria-haspopup="dialog"
+        data-testid="asset-cover"
+        :data-asset-id="row.id"
+        @pointerenter="preview.schedule(row, $event)"
+        @pointerleave="preview.closeHover()"
+        @focus="preview.schedule(row, $event)"
+        @blur="preview.closeHover()"
+        @click="preview.open(row)"
+        @keydown.enter.prevent="preview.open(row)"
+        @keydown.space.prevent="preview.open(row)"
+      >
         <AssetThumbnail :asset="row" /><span class="asset-type">{{
           label(row.kind)
         }}</span
@@ -454,8 +480,17 @@ onMounted(async () => {
   ><el-drawer v-model="drawer" title="素材详情与授权" size="540px"
     ><div v-if="detail">
       <div
-        class="asset-preview"
+        class="asset-preview asset-preview-trigger"
         style="height: 230px; border-radius: 10px; margin-bottom: 22px"
+        role="button"
+        tabindex="0"
+        :aria-label="`预览素材：${detail.name}`"
+        aria-haspopup="dialog"
+        data-testid="asset-detail-cover"
+        :data-asset-id="detail.id"
+        @click="preview.open(detail)"
+        @keydown.enter.prevent="preview.open(detail)"
+        @keydown.space.prevent="preview.open(detail)"
       >
         <AssetThumbnail :asset="detail" /><span class="asset-type">{{
           label(detail.kind)
@@ -564,4 +599,5 @@ onMounted(async () => {
       ></template
     >
   </el-dialog>
+  <AssetPreview ref="preview" @details="show" @download="getFile" />
 </template>
