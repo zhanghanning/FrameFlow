@@ -67,7 +67,7 @@ platform_account 保存账号业务档案，platform_connection 保存授权连�
 python3 -c "import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 ```
 
-生成后保存到本地 `.env`。该密钥用于读取已保存授权，需与数据库一起妥善保存。`PLATFORM_FRONTEND_URL` 默认 `http://localhost:3000`，`PLATFORM_PUBLIC_BASE_URL` 默认 `http://localhost:8080`。配置完成后重启后端。显式启用模块后，凭据缺失的平台显示待配置状态；默认关闭时不显示接入界面。
+生成后保存到本地 `.env`。该密钥用于读取已保存授权，需与数据库一起妥善保存。`PLATFORM_FRONTEND_URL` 默认 `http://localhost:18080`，`PLATFORM_PUBLIC_BASE_URL` 默认 `http://localhost:8080`。已有本地配置中的前端回跳地址同步为 18080，后端 OAuth 回调仍使用 8080。配置完成后重启后端。显式启用模块后，凭据缺失的平台显示待配置状态；默认关闭时不显示接入界面。
 
 数据库迁移：`sudo python3 scripts/init_database.py`，会在业务库及独立测试库执行可重复运行的 `database/platform-integration.sql`。源码包不包含本地凭据与平台令牌。
 

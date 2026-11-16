@@ -13,7 +13,7 @@ cd /home/techno/JavaWebSQL
 bash scripts/dev.sh
 ```
 
-浏览器打开 **http://localhost:3000**。后端 8080，MySQL 3306；开发服务日志在 `.runtime/`。停止时执行 `bash scripts/stop.sh`。
+浏览器打开 **http://localhost:18080**。后端 8080，MySQL 3306；开发服务日志在 `.runtime/`。停止时执行 `bash scripts/stop.sh`。
 
 Windows / IDEA 终端可以直接执行：
 
@@ -21,11 +21,11 @@ Windows / IDEA 终端可以直接执行：
 wsl -d Ubuntu-22.04 -- bash /home/techno/JavaWebSQL/scripts/dev.sh
 ```
 
-Windows 的 5142–5241 属于系统保留端口，本机前端选用 3000 使 WSL localhost 转发正常。
+本机前端使用 18080。Windows 保留端口范围会变化；2026-11-16 排查发现 3000 落入 2989–3088 保留区，WSL 内服务正常而 Windows localhost 访问失败。排查步骤见 [开发说明](docs/development.md#运行排查)。
 
 ## 注册与身份
 
-打开 http://localhost:3000/register 注册创作者账号。系统同步建立个人创作者档案，登录后可管理本人资料、平台账号和素材，加入项目后开展作品协作并查看个人分账。
+打开 http://localhost:18080/register 注册创作者账号。系统同步建立个人创作者档案，登录后可管理本人资料、平台账号和素材，加入项目后开展作品协作并查看个人分账。
 
 在账号中心的“身份申请”提交项目统筹、财务、审核或管理员岗位申请，已有管理员审核通过后追加权限。项目统筹负责立项和管理本人负责项目，创作者参与分配项目；素材通过项目授权共享。撤回附加岗位后保留创作者身份及历史资产、分账关系。具体范围见 [权限说明](docs/permissions.md)。
 

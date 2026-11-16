@@ -9,7 +9,7 @@
 5. Vue / JavaScript 使用 WSL Node `/usr/local/bin/node`。前端依赖安装和运行在 WSL 终端内完成。
 6. IDEA Terminal 可执行 `wsl -d Ubuntu-22.04`，再 `cd /home/techno/JavaWebSQL`；或把终端 Shell path 设为 `wsl.exe -d Ubuntu-22.04`。
 
-终端运行 `bash scripts/dev.sh` 同时启动前后端。此入口读取 `.env`，所以无需在 IDE 配置中复制数据库密码。MySQL 由 systemd 管理，`systemctl is-active mysql` 查看状态，停止时 `sudo systemctl start mysql` 启动。
+终端运行 `bash scripts/dev.sh` 同时启动前后端，浏览器访问 `http://localhost:18080`。此入口读取 `.env`，所以无需在 IDE 配置中复制数据库密码。MySQL 由 systemd 管理，`systemctl is-active mysql` 查看状态，停止时 `sudo systemctl start mysql` 启动。
 
 ## 配置与产物
 
@@ -43,6 +43,7 @@ UTF-8 编码，支持 BOM。列为 `publicationId,sourceRef,revenueDate,grossAmo
 ## 运行排查
 
 - 后端日志 `.runtime/backend.log`；前端日志 `.runtime/frontend.log`。
-- 3000/8080 已被占用时先确认是否本项目已运行，用 `scripts/stop.sh` 停止后重启。
+- 18080/8080 已被占用时先确认是否本项目已运行，用 `scripts/stop.sh` 停止后重启。
+- 若 WSL 内能访问而 Windows localhost 无法访问，先比较 `wsl -d Ubuntu-22.04 -- curl -I http://localhost:18080` 与 Windows 的 `curl.exe -I http://localhost:18080`，再用 `netsh interface ipv4 show excludedportrange protocol=tcp` 检查 Windows 保留端口。2026-11-16 的旧端口 3000 落入 2989–3088 保留区；临时 18080 监听经 Windows localhost 请求返回 HTTP 200，因此当前入口改用 18080。
 - 更新数据库结构时直接维护 database/ 原脚本，并在独立测试库验证。应用启动不隐式重建业务数据。
 - 若出现环境阻塞，记录具体错误后决定处理方式，保持既定技术方案。

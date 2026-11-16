@@ -14,5 +14,5 @@ if [ ! -f .runtime/frontend.pid ] || ! kill -0 "$(cat .runtime/frontend.pid)" 2>
   (cd frontend && exec npm run dev) > .runtime/frontend.log 2>&1 &
   echo $! > .runtime/frontend.pid
 fi
-printf '帧序启动中： http://localhost:3000\n日志：.runtime/backend.log 与 .runtime/frontend.log\n'
+printf '帧序启动中： http://localhost:18080\n日志：.runtime/backend.log 与 .runtime/frontend.log\n'
 wait

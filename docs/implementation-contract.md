@@ -1,7 +1,7 @@
 # 帧序 FrameFlow — implementation contract
 
 Working directory: /home/techno/JavaWebSQL in WSL Ubuntu-22.04. Windows UNC: \\wsl.localhost\Ubuntu-22.04\home\techno\JavaWebSQL.
-Single studio / MCN workspace. Java 21, Spring Boot 3.5.12, native MyBatis 3.0.5, MySQL 8; Vue 3 + Vite + Vue Router + Axios + Element Plus. API /api on 8080; Vue 3000 proxies /api. Java package com.frameflow. No report until application and tests complete.
+Single studio / MCN workspace. Java 21, Spring Boot 3.5.12, native MyBatis 3.0.5, MySQL 8; Vue 3 + Vite + Vue Router + Axios + Element Plus. API /api on 8080; Vue 18080 proxies /api. Browser entry: http://localhost:18080. Java package com.frameflow. No report until application and tests complete.
 
 ## Ownership
 Database agent owns database/ only (schema.sql, objects.sql, seed.sql, performance.sql, security.sql). Backend agent owns backend/ only. Frontend agent owns frontend/ only. Main agent owns scripts/, docs/, README, IDE config and tests/integration. Coordinate schema/API changes by messages before changing contracts.
